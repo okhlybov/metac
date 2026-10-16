@@ -1361,21 +1361,25 @@ class Function(_Functional, _Parametrized, _VisibilityManager):
     if self.active:
       super().render_declarations(stream, header)
       if (header and not self.internal) or (not header and self.internal):
-        self._render_documentation(stream,header)
-        self._render_declaration(stream)
+        self._render_documentation(stream, header)
+        if not header and self.inline:
+          self._render_declaration(stream)
+          self._render_definition(stream)
+        else:
+          self._render_declaration(stream)
 
   #
   def render_definitions(self, stream, header):
     if self.active:
       super().render_definitions(stream, header)
       if self.inline:
-        if (header and not self.internal) or (not header and self.internal):
+        if header and not self.internal:
           self._render_definition(stream)
       else:
         if not header:
           self._render_definition(stream)
 
-  #  
+  #
   def _render_definition(self, stream):
     if not self.abstract:
       stream.append(self.definition)
