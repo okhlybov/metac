@@ -48,7 +48,8 @@ if not has_meson_file
   endif
 endif
 
-autoc_sources = files(fs.read(meson_file).strip().split())
+autoc_file_names = fs.read(meson_file).strip().split()
+autoc_sources = files(autoc_file_names)
 
 need_generator = regen_opt.enabled() or (regen_opt.auto() and py.found())
 
@@ -77,8 +78,32 @@ else
   )
 endif
 
-exe = executable('@project@',
-  dependencies: [autoc_dep]
-)
+app_sources = []
+if fs.exists('@project@.c')
+  app_sources += files('@project@.c')
+endif
 
-test('@project@', exe)
+has_c_sources = false
+foreach f : autoc_file_names
+  if f.endswith('.c')
+    has_c_sources = true
+  endif
+endforeach
+
+if app_sources.length() > 0 or has_c_sources
+  exe = executable('@project@',
+    sources: app_sources,
+    dependencies: [autoc_dep]
+  )
+  test('@project@', exe)
+endif
+
+doxygen = find_program('doxygen', required: false)
+if doxygen.found() and fs.exists('Doxyfile')
+  custom_target('doc',
+    command: [doxygen, files('Doxyfile')],
+    output: 'reference',
+    depends: need_generator ? [module_gen] : [],
+    build_by_default: true,
+  )
+endif

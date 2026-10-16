@@ -1,7 +1,8 @@
 import sys
 import argparse
-from autoc.scaffolder import get_backend_scaffolder, BACKENDS
-from autoc.scons import Scaffolder
+import autoc.project
+from autoc.project import BACKENDS, get_backend_scaffolder
+from autoc.project.scons import Scaffolder
 
 
 def generate(project, directory=".", backend="scons"):

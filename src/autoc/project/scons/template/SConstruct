@@ -35,12 +35,21 @@ else:
     env.Append(CCFLAGS=["-O3", "-DNDEBUG"])
 
 project = "@project@"
+module = "@module@"
 
 autoc_mod = env.AutoCModule(
-  project,
+  module,
   directory=".",
-  main_dependency=f"{project}.py",
+  main_dependency=f"{module}.py",
 )
 
-app = env.Program(target=project, source=[f"{project}.c"] + autoc_mod.sources)
-Default(app)
+app_sources = [f"{project}.c"] if os.path.exists(f"{project}.c") else []
+all_sources = app_sources + autoc_mod.sources
+
+if all_sources:
+  app = env.Program(target=project, source=all_sources)
+  Default(app)
+
+if os.path.exists("Doxyfile"):
+  doc = env.Command("reference", [autoc_mod.header, "Doxyfile"], "doxygen Doxyfile")
+  Default(doc)

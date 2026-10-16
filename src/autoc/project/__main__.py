@@ -1,11 +1,5 @@
-import sys
 import argparse
-from autoc.scaffolder import get_backend_scaffolder, BACKENDS
-
-
-def generate(project, directory=".", backend="cmake"):
-  scaffolder_cls = get_backend_scaffolder(backend)
-  scaffolder_cls(parameters=dict(project=project, module=project)).generate(directory)
+from autoc.project import generate, BACKENDS
 
 
 if __name__ == "__main__":

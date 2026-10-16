@@ -1,5 +1,7 @@
 import argparse
-from autoc.scaffolder import get_backend_scaffolder, make_template_reader, BACKENDS
+import autoc.project
+from autoc.scaffolder import make_template_reader
+
 
 reader = make_template_reader(__package__)
 
@@ -8,18 +10,10 @@ class Scaffolder:
 
   def __new__(cls, resources=None, parameters=None, backend="cmake"):
     backend = (parameters or {}).get("backend") or backend
-    base_cls = get_backend_scaffolder(backend)
-
-    build_file = {
-      "cmake": "CMakeLists.txt",
-      "meson": "meson.build",
-      "scons": "SConstruct",
-    }[backend.lower()]
+    base_cls = autoc.project.get_backend_scaffolder(backend)
 
     custom_resources = {
-      "@project@.code-workspace": reader,
       "@module@.py": reader,
-      build_file: reader,
       "@module@.c": None,
     } | dict(resources or {})
 
@@ -34,6 +28,6 @@ def generate(directory=".", backend="cmake"):
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(description="Generate project for the AutoC test suite")
   parser.add_argument("directory", nargs="?", default=".", help="Target directory (default: .)")
-  parser.add_argument("--backend", "-b", choices=BACKENDS, default="cmake", help="Build backend (default: cmake)")
+  parser.add_argument("--backend", "-b", choices=autoc.project.BACKENDS, default="cmake", help="Build backend (default: cmake)")
   args = parser.parse_args()
   generate(directory=args.directory, backend=args.backend)

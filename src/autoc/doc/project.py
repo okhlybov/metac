@@ -4,7 +4,9 @@ import pathlib
 import argparse
 import autoc
 import autoc.doc
-from autoc.scaffolder import make_template_reader, get_backend_scaffolder, BACKENDS
+import autoc.project
+from autoc.project import BACKENDS, get_backend_scaffolder
+from autoc.scaffolder import make_template_reader
 
 
 reader = make_template_reader(__package__)
@@ -34,14 +36,7 @@ class Scaffolder:
       src_path=autoc_source.as_posix(),
     )
 
-    build_file = {
-      "cmake": "CMakeLists.txt",
-      "meson": "meson.build",
-      "scons": "SConstruct",
-    }[backend.lower()]
-
     custom_resources = {
-      build_file: reader,
       "Doxyfile": reader,
       "@module@.py": reader,
       "catalog.py": reader,

@@ -1,7 +1,8 @@
 import sys
 import argparse
-from autoc.scaffolder import get_backend_scaffolder, BACKENDS
-from autoc.cmake import Scaffolder
+import autoc.project
+from autoc.project import BACKENDS, get_backend_scaffolder
+from autoc.project.cmake import Scaffolder
 
 
 def generate(project, directory=".", backend="cmake"):
