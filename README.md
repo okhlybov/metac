@@ -89,10 +89,11 @@ pip install .
 `autoc` provides project scaffolders for CMake, SCons, and Meson:
 
 ```sh
-mkdir readings && cd readings
-python -m autoc.cmake.project readings   # CMake
-# or: python -m autoc.scons.project readings   # SCons
-# or: python -m autoc.meson.project readings   # Meson
+python -m autoc.cmake readings   # CMake
+# or: python -m autoc.scons readings   # SCons
+# or: python -m autoc.meson readings   # Meson
+# or: python -m autoc.sample readings  # generic, defaults to CMake (-b meson / -b scons)
+cd readings
 ```
 
 This sets up a working project with the generator already wired in. For CMake:

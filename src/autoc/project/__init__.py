@@ -2,10 +2,6 @@ import os
 import sys
 import pathlib
 import autoc.scaffolder
-from autoc.scaffolder import make_template_reader
-
-
-reader = make_template_reader(__package__)
 
 
 BACKENDS = ("cmake", "meson", "scons")
@@ -40,10 +36,7 @@ class Scaffolder(autoc.scaffolder.Scaffolder):
     params.setdefault("autoc_path", autoc_dir)
 
     super().__init__(
-      resources={
-        "@module@.py": reader,
-        "@module@.c": reader,
-      } | dict(resources or {}),
+      resources=resources,
       parameters=params,
     )
 
@@ -65,6 +58,6 @@ class Scaffolder(autoc.scaffolder.Scaffolder):
     super().generate(target)
 
 
-def generate(project, directory=".", backend="cmake"):
-  scaffolder_cls = get_backend_scaffolder(backend)
-  scaffolder_cls(parameters=dict(project=project, module=project)).generate(directory)
+def generate(directory=".", project=None, backend="cmake", **kwargs):
+  import autoc.sample
+  autoc.sample.generate(directory=directory, project=project, backend=backend, **kwargs)

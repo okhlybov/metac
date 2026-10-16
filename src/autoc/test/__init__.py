@@ -242,3 +242,28 @@ code = autoc.module.Code(
     }
   """
 )
+
+
+import autoc.project
+from autoc.scaffolder import make_template_reader
+
+reader = make_template_reader(__package__)
+
+
+class Scaffolder:
+
+  def __new__(cls, resources=None, parameters=None, backend="cmake"):
+    backend = (parameters or {}).get("backend") or backend
+    base_cls = autoc.project.get_backend_scaffolder(backend)
+
+    custom_resources = {
+      "@module@.py": reader,
+      "@module@.c": None,
+    } | dict(resources or {})
+
+    params = dict(project="autoc-test", module="test") | dict(parameters or {})
+    return base_cls(resources=custom_resources, parameters=params)
+
+
+def generate(directory=".", backend="cmake"):
+  Scaffolder(backend=backend).generate(directory)

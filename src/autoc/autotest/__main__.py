@@ -1,9 +1,11 @@
-import sys
-import autoc.autotest
-import autoc.cmake
-import autoc.module
+import argparse
+import autoc.project
+from autoc.autotest import generate
+
 
 if __name__ == "__main__":
-  with autoc.cmake.CMake():
-    with autoc.module.Module("autotest", source_threshold=200*1024) as m:
-      autoc.autotest.configure_module(m)
+  parser = argparse.ArgumentParser(description="Generate project for the AutoC programmatic test suite")
+  parser.add_argument("directory", nargs="?", default=".", help="Target directory (default: .)")
+  parser.add_argument("--backend", "-b", choices=autoc.project.BACKENDS, default="cmake", help="Build backend (default: cmake)")
+  args = parser.parse_args()
+  generate(directory=args.directory, backend=args.backend)

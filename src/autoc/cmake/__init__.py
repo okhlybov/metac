@@ -68,3 +68,8 @@ import autoc.project.cmake
 Scaffolder = autoc.project.cmake.Scaffolder
 
 
+def generate(directory=".", project=None, backend="cmake", **kwargs):
+  import autoc.sample
+  autoc.sample.generate(directory=directory, project=project, backend=backend, **kwargs)
+
+

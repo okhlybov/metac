@@ -145,3 +145,8 @@ def add_autoc_module(env, module, directory=".", main_dependency=None, command=N
 import autoc.project.scons
 
 Scaffolder = autoc.project.scons.Scaffolder
+
+
+def generate(directory=".", project=None, backend="scons", **kwargs):
+  import autoc.sample
+  autoc.sample.generate(directory=directory, project=project, backend=backend, **kwargs)

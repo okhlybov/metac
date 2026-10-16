@@ -66,5 +66,6 @@ class Scaffolder(autoc.project.Scaffolder):
     )
 
 
-def generate(project, directory="."):
-  Scaffolder(parameters=dict(project=project, module=project)).generate(directory)
+def generate(directory=".", project=None, **kwargs):
+  import autoc.sample
+  autoc.sample.generate(directory=directory, project=project, backend="cmake", **kwargs)

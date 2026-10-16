@@ -16,7 +16,8 @@ pip install .
 
 > **Tip:** You can also scaffold a ready-to-run project automatically for CMake, SCons, or Meson:
 > ```sh
-> python -m autoc.cmake.project sensors   # replace cmake with meson, scons
+> python -m autoc.cmake sensors   # replace cmake with meson, scons
+> cd sensors
 > ```
 
 ## 2. Define the module

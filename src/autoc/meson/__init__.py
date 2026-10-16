@@ -48,3 +48,8 @@ import autoc.project.meson
 
 Scaffolder = autoc.project.meson.Scaffolder
 
+
+def generate(directory=".", project=None, backend="meson", **kwargs):
+  import autoc.sample
+  autoc.sample.generate(directory=directory, project=project, backend=backend, **kwargs)
+
