@@ -125,6 +125,13 @@ def add_autoc_module(env, module, directory=".", main_dependency=None, command=N
     if need_gen:
       print(f"-- Generating AutoC module {module}")
       env_vars = os.environ.copy()
+      autoc_pythonpath = env.get("AUTOC_PYTHONPATH")
+      if autoc_pythonpath:
+        env_vars["PYTHONPATH"] = (
+          f"{autoc_pythonpath}{os.pathsep}{env_vars['PYTHONPATH']}"
+          if "PYTHONPATH" in env_vars
+          else autoc_pythonpath
+        )
       res = subprocess.run(command, cwd=directory, capture_output=True, text=True, env=env_vars)
       if res.returncode != 0:
         raise _UserError(f"AutoC generator failed for '{module}':\n{res.stderr}\n{res.stdout}")

@@ -24,11 +24,19 @@ class Meson:
       with open(meson, "w") as f:
         f.write(contents)
     st = stamp or self.stamp
+    if not st and len(sys.argv) > 2 and not sys.argv[2].startswith("-"):
+      st = sys.argv[2]
     if st:
-      pathlib.Path(st).touch()
-    elif len(sys.argv) > 2 and not sys.argv[2].startswith("-"):
+      if module.stateful:
+        pathlib.Path(st).touch()
+      else:
+        try:
+          pathlib.Path(st).unlink(missing_ok=True)
+        except OSError:
+          pass
+    elif not module.stateful:
       try:
-        pathlib.Path(sys.argv[2]).touch()
+        pathlib.Path(f"{module.name}.stamp").unlink(missing_ok=True)
       except OSError:
         pass
 

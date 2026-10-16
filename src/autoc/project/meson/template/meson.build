@@ -58,7 +58,8 @@ if need_generator
   if env_cmd.length() > 0
     gen_cmd += env_cmd
   endif
-  gen_cmd += [py, '@INPUT@', module_name, '@OUTPUT@']
+  stamp_file = meson.current_build_dir() / (module_name + '.stamp')
+  gen_cmd += [py, '@INPUT@', module_name, stamp_file]
 
   module_gen = custom_target(
     module_name + '-generate',
