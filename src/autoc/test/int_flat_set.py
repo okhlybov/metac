@@ -203,11 +203,11 @@ x.unit("algebraic operations: union, intersection, difference", f"""
     {type.put("&b", 3)};
     {type.put("&b", 4)};
     TEST_TRUE( {type.is_subset("&b", t)} == 0 );
-    TEST_TRUE( {type.union(t, "&b")} == 1 ); /* adds 4 */
+    TEST_TRUE( {type.apply_union(t, "&b")} == 1 ); /* adds 4 */
     TEST_EQUAL( {type.size(t)}, 4 );
     TEST_TRUE( {type.contains(t, 4)} );
     TEST_TRUE( {type.is_superset(t, "&b")} );
-    TEST_TRUE( {type.difference(t, "&b")} == 3 ); /* removes 2, 3, 4 */
+    TEST_TRUE( {type.apply_difference(t, "&b")} == 3 ); /* removes 2, 3, 4 */
     TEST_EQUAL( {type.size(t)}, 1 );
     TEST_TRUE( {type.contains(t, 1)} );
     {type.destroy("&b")};
@@ -223,17 +223,17 @@ x.unit("symmetric difference and self algebra", f"""
     {type.create("&b")};
     {type.put("&b", 2)};
     {type.put("&b", 3)};
-    TEST_EQUAL( {type.symmetric_difference(t, "&b")}, 2 ); /* removes 2, adds 3 -> {1, 3} */
+    TEST_EQUAL( {type.apply_symmetric_difference(t, "&b")}, 2 ); /* removes 2, adds 3 -> {1, 3} */
     TEST_EQUAL( {type.size(t)}, 2 );
     TEST_TRUE( {type.contains(t, 1)} );
     TEST_FALSE( {type.contains(t, 2)} );
     TEST_TRUE( {type.contains(t, 3)} );
     /* Self-union is a no-op */
-    TEST_EQUAL( {type.union(t, t)}, 0 );
+    TEST_EQUAL( {type.apply_union(t, t)}, 0 );
     /* Self-intersection removes nothing */
-    TEST_EQUAL( {type.intersection(t, t)}, 0 );
+    TEST_EQUAL( {type.apply_intersection(t, t)}, 0 );
     /* Self-difference empties the set */
-    TEST_EQUAL( {type.difference(t, t)}, 2 );
+    TEST_EQUAL( {type.apply_difference(t, t)}, 2 );
     TEST_TRUE( {type.empty(t)} );
     {type.destroy("&b")};
   }}

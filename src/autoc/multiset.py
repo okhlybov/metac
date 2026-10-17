@@ -1,5 +1,5 @@
 import autoc.std as std
-from autoc.core import inout, Callable, enforced, Comparable, Coerce
+from autoc.core import inout, out, Callable, enforced, Comparable, Coerce
 from autoc.traversable import Traversable
 from autoc.insertable import Insertable
 
@@ -84,7 +84,7 @@ class Multiset(Traversable, Insertable):
     algebra_constraint = lambda: self.algebraic_operations and self.element.copyable and self.element.comparable
     subset_constraint = lambda: self.algebraic_operations and self.element.comparable
 
-    with self.method("int", "union", {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Multiset union (maximum multiplicities)",
+    with self.method("int", ("apply", "union"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Multiset union (maximum multiplicities)",
       description="""
         Expands the target multiset so that the multiplicity of each element becomes the maximum
         of its multiplicities in the target and in other.
@@ -109,7 +109,7 @@ class Multiset(Traversable, Insertable):
         return added;
       """
 
-    with self.method("int", "difference", {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Multiset difference (subtract multiplicities)",
+    with self.method("int", ("apply", "difference"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Multiset difference (subtract multiplicities)",
       description="""
         Subtracts the multiplicity of each element in other from the multiplicity in target.
         Cost is O(m) calls to `remove` where m is the other multiset's size.
@@ -136,7 +136,7 @@ class Multiset(Traversable, Insertable):
         return removed;
       """
 
-    with self.method("int", "intersection", {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Multiset intersection (minimum multiplicities)",
+    with self.method("int", ("apply", "intersection"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Multiset intersection (minimum multiplicities)",
       description="""
         Reduces the multiplicity of each element in target to the minimum of its multiplicities
         in target and in other.
@@ -165,7 +165,7 @@ class Multiset(Traversable, Insertable):
         return removed;
       """
 
-    with self.method("int", ("symmetric", "difference"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Multiset symmetric difference (absolute difference of multiplicities)",
+    with self.method("int", ("apply", "symmetric", "difference"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Multiset symmetric difference (absolute difference of multiplicities)",
       description="""
         Sets the multiplicity of each element in target to the absolute difference |m_target - m_other|.
         The target itself is allowed and empties it in place.
@@ -193,12 +193,147 @@ class Multiset(Traversable, Insertable):
         for({r} = {range.new(m.target)}; !{range.empty(r)}; {range.move_front(r)}) {{
           {self.remove(temp, range.front_view(r))};
         }}
-        changed = {self.difference(m.target, m.other)};
+        changed = {self.apply_difference(m.target, m.other)};
         for({r} = {range.new(temp)}; !{range.empty(r)}; {range.move_front(r)}) {{
           changed += {self.put(m.target, range.front_view(r))};
         }}
         {self.destroy(temp)};
         return changed;
+      """
+
+    # --- Constructing algebraic operations on immutable sources ---
+
+    with self.method(None, ("create", "union"), {"target": out(self), "left": self, "right": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Construct multiset union (maximum multiplicities)",
+      description="""
+        Constructs target with element multiplicities set to max(m_left(x), m_right(x)).
+        The inputs are not modified.
+
+        @param[out] target the uninitialized storage to construct
+        @param[in] left the first multiset
+        @param[in] right the second multiset
+      """) as m:
+      m.code = lambda m: f"""
+        {r.definition};
+        assert(target);
+        assert({m.left});
+        assert({m.right});
+        if({m.left} == {m.right}) {{
+          {self.copy(m.target, m.left)};
+          return;
+        }}
+        if({self.size(m.left)} >= {self.size(m.right)}) {{
+          {self.copy(m.target, m.left)};
+          for({r} = {range.new(m.right)}; !{range.empty(r)}; {range.move_front(r)}) {{
+            if({self.count(m.target, range.front_view(r))} < {self.count(m.right, range.front_view(r))}) {{
+              {self.put(m.target, range.front_view(r))};
+            }}
+          }}
+        }} else {{
+          {self.copy(m.target, m.right)};
+          for({r} = {range.new(m.left)}; !{range.empty(r)}; {range.move_front(r)}) {{
+            if({self.count(m.target, range.front_view(r))} < {self.count(m.left, range.front_view(r))}) {{
+              {self.put(m.target, range.front_view(r))};
+            }}
+          }}
+        }}
+      """
+
+    with self.method(None, ("create", "intersection"), {"target": out(self), "left": self, "right": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Construct multiset intersection (minimum multiplicities)",
+      description="""
+        Constructs target with element multiplicities set to min(m_left(x), m_right(x)).
+        The inputs are not modified.
+
+        @param[out] target the uninitialized storage to construct
+        @param[in] left the first multiset
+        @param[in] right the second multiset
+      """) as m:
+      m.code = lambda m: f"""
+        {r.definition};
+        assert(target);
+        assert({m.left});
+        assert({m.right});
+        if({m.left} == {m.right}) {{
+          {self.copy(m.target, m.left)};
+          return;
+        }}
+        {self.create(m.target)};
+        if({self.size(m.left)} <= {self.size(m.right)}) {{
+          for({r} = {range.new(m.left)}; !{range.empty(r)}; {range.move_front(r)}) {{
+            if({self.count(m.target, range.front_view(r))} < {self.count(m.right, range.front_view(r))}) {{
+              {self.put(m.target, range.front_view(r))};
+            }}
+          }}
+        }} else {{
+          for({r} = {range.new(m.right)}; !{range.empty(r)}; {range.move_front(r)}) {{
+            if({self.count(m.target, range.front_view(r))} < {self.count(m.left, range.front_view(r))}) {{
+              {self.put(m.target, range.front_view(r))};
+            }}
+          }}
+        }}
+      """
+
+    with self.method(None, ("create", "difference"), {"target": out(self), "left": self, "right": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Construct multiset difference (subtract multiplicities)",
+      description="""
+        Constructs target with element multiplicities set to max(0, m_left(x) - m_right(x)).
+        The inputs are not modified.
+
+        @param[out] target the uninitialized storage to construct
+        @param[in] left the multiset to subtract from
+        @param[in] right the multiset whose multiplicities are subtracted
+      """) as m:
+      m.code = lambda m: f"""
+        {r.definition};
+        assert(target);
+        assert({m.left});
+        assert({m.right});
+        if({m.left} == {m.right}) {{
+          {self.create(m.target)};
+          return;
+        }}
+        if({self.size(m.right)} == 0) {{
+          {self.copy(m.target, m.left)};
+          return;
+        }}
+        {self.create(m.target)};
+        for({r} = {range.new(m.left)}; !{range.empty(r)}; {range.move_front(r)}) {{
+          size_t c_l = {self.count(m.left, range.front_view(r))};
+          size_t c_r = {self.count(m.right, range.front_view(r))};
+          if(c_l > c_r && {self.count(m.target, range.front_view(r))} < c_l - c_r) {{
+            {self.put(m.target, range.front_view(r))};
+          }}
+        }}
+      """
+
+    with self.method(None, ("create", "symmetric", "difference"), {"target": out(self), "left": self, "right": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Construct multiset symmetric difference (|m_left - m_right|)",
+      description="""
+        Constructs target with element multiplicities set to |m_left(x) - m_right(x)|.
+        The inputs are not modified.
+
+        @param[out] target the uninitialized storage to construct
+        @param[in] left the first multiset
+        @param[in] right the second multiset
+      """) as m:
+      m.code = lambda m: f"""
+        {r.definition};
+        assert(target);
+        assert({m.left});
+        assert({m.right});
+        {self.create(m.target)};
+        if({m.left} == {m.right}) return;
+        for({r} = {range.new(m.left)}; !{range.empty(r)}; {range.move_front(r)}) {{
+          size_t c_l = {self.count(m.left, range.front_view(r))};
+          size_t c_r = {self.count(m.right, range.front_view(r))};
+          if(c_l > c_r && {self.count(m.target, range.front_view(r))} < c_l - c_r) {{
+            {self.put(m.target, range.front_view(r))};
+          }}
+        }}
+        for({r} = {range.new(m.right)}; !{range.empty(r)}; {range.move_front(r)}) {{
+          size_t c_r = {self.count(m.right, range.front_view(r))};
+          size_t c_l = {self.count(m.left, range.front_view(r))};
+          if(c_r > c_l && {self.count(m.target, range.front_view(r))} < c_r - c_l) {{
+            {self.put(m.target, range.front_view(r))};
+          }}
+        }}
       """
 
     with self.method("int", ("is", "subset"), {"target": self, "other": self}, constraint=subset_constraint, optional_group="algebraic_operations", brief="Check if target is a sub-multiset of other",

@@ -1,7 +1,7 @@
 import autoc.std as std
 from autoc.hash import XorRot
 from autoc.memory import Manager
-from autoc.core import inout, Composite, _StructRenderer
+from autoc.core import inout, out, Composite, _StructRenderer
 
 
 # Dynamically resizable packed bit vector container
@@ -650,7 +650,7 @@ class Vector(_StructRenderer, Composite):
 
     # --- set algebra (in-place) ---
 
-    with self.method(None, ("assign", "union"), {"target": inout(self), "source": self},
+    with self.method(None, ("apply", "union"), {"target": inout(self), "source": self},
       constraint=lambda: self.algebraic_operations,
       optional_group="algebraic_operations",
       brief="In-place bitwise OR (union)",
@@ -678,7 +678,7 @@ class Vector(_StructRenderer, Composite):
         }}
       """
 
-    with self.method(None, ("assign", "intersection"), {"target": inout(self), "source": self},
+    with self.method(None, ("apply", "intersection"), {"target": inout(self), "source": self},
       constraint=lambda: self.algebraic_operations,
       optional_group="algebraic_operations",
       brief="In-place bitwise AND (intersection)",
@@ -708,7 +708,7 @@ class Vector(_StructRenderer, Composite):
         }}
       """
 
-    with self.method(None, ("assign", "difference"), {"target": inout(self), "source": self},
+    with self.method(None, ("apply", "difference"), {"target": inout(self), "source": self},
       constraint=lambda: self.algebraic_operations,
       optional_group="algebraic_operations",
       brief="In-place bitwise AND NOT (difference)",
@@ -734,7 +734,7 @@ class Vector(_StructRenderer, Composite):
         }}
       """
 
-    with self.method(None, ("assign", "symmetric", "difference"), {"target": inout(self), "source": self},
+    with self.method(None, ("apply", "symmetric", "difference"), {"target": inout(self), "source": self},
       constraint=lambda: self.algebraic_operations,
       optional_group="algebraic_operations",
       brief="In-place bitwise XOR (symmetric difference)",
@@ -755,6 +755,144 @@ class Vector(_StructRenderer, Composite):
         common_words = (source->size + word_bits - 1) / word_bits;
         for(index = 0; index < common_words; ++index) {{
           target->words[index] ^= source->words[index];
+        }}
+        if(target->size % word_bits != 0) {{
+          target->words[target->size / word_bits] &= (((size_t)1) << (target->size % word_bits)) - 1;
+        }}
+      """
+
+    # --- constructing algebraic operations ---
+
+    with self.method(None, ("create", "union"), {"target": out(self), "left": self, "right": self},
+      constraint=lambda: self.algebraic_operations,
+      optional_group="algebraic_operations",
+      brief="Construct bitwise OR (union) of two bit vectors",
+      description="""
+        Constructs target as the union of two bit vectors: `target = left | right`.
+        Target size is max(left->size, right->size).
+
+        @param[out] target the uninitialized bit vector to construct
+        @param[in] left the first bit vector
+        @param[in] right the second bit vector
+      """) as m:
+      m.code = f"""
+        size_t word_bits = sizeof(size_t) * 8;
+        size_t max_size, left_words, right_words, common_words, index;
+        assert(target);
+        assert(left);
+        assert(right);
+        max_size = left->size >= right->size ? left->size : right->size;
+        {self.create_size(m.target, "max_size")};
+        left_words = (left->size + word_bits - 1) / word_bits;
+        right_words = (right->size + word_bits - 1) / word_bits;
+        common_words = left_words <= right_words ? left_words : right_words;
+        for(index = 0; index < common_words; ++index) {{
+          target->words[index] = left->words[index] | right->words[index];
+        }}
+        for(index = common_words; index < left_words; ++index) {{
+          target->words[index] = left->words[index];
+        }}
+        for(index = common_words; index < right_words; ++index) {{
+          target->words[index] = right->words[index];
+        }}
+        if(target->size % word_bits != 0) {{
+          target->words[target->size / word_bits] &= (((size_t)1) << (target->size % word_bits)) - 1;
+        }}
+      """
+
+    with self.method(None, ("create", "intersection"), {"target": out(self), "left": self, "right": self},
+      constraint=lambda: self.algebraic_operations,
+      optional_group="algebraic_operations",
+      brief="Construct bitwise AND (intersection) of two bit vectors",
+      description="""
+        Constructs target as the intersection of two bit vectors: `target = left & right`.
+        Target size is min(left->size, right->size).
+
+        @param[out] target the uninitialized bit vector to construct
+        @param[in] left the first bit vector
+        @param[in] right the second bit vector
+      """) as m:
+      m.code = f"""
+        size_t word_bits = sizeof(size_t) * 8;
+        size_t min_size, target_words, index;
+        assert(target);
+        assert(left);
+        assert(right);
+        min_size = left->size <= right->size ? left->size : right->size;
+        {self.create_size(m.target, "min_size")};
+        target_words = (target->size + word_bits - 1) / word_bits;
+        for(index = 0; index < target_words; ++index) {{
+          target->words[index] = left->words[index] & right->words[index];
+        }}
+        if(target->size % word_bits != 0) {{
+          target->words[target->size / word_bits] &= (((size_t)1) << (target->size % word_bits)) - 1;
+        }}
+      """
+
+    with self.method(None, ("create", "difference"), {"target": out(self), "left": self, "right": self},
+      constraint=lambda: self.algebraic_operations,
+      optional_group="algebraic_operations",
+      brief="Construct bitwise AND NOT (difference) of two bit vectors",
+      description="""
+        Constructs target as the difference of two bit vectors: `target = left & ~right`.
+        Target size is left->size.
+
+        @param[out] target the uninitialized bit vector to construct
+        @param[in] left the first bit vector
+        @param[in] right the bit vector to subtract
+      """) as m:
+      m.code = f"""
+        size_t word_bits = sizeof(size_t) * 8;
+        size_t left_words, right_words, common_words, index;
+        assert(target);
+        assert(left);
+        assert(right);
+        {self.create_size(m.target, "left->size")};
+        left_words = (left->size + word_bits - 1) / word_bits;
+        right_words = (right->size + word_bits - 1) / word_bits;
+        common_words = left_words <= right_words ? left_words : right_words;
+        for(index = 0; index < common_words; ++index) {{
+          target->words[index] = left->words[index] & ~right->words[index];
+        }}
+        for(index = common_words; index < left_words; ++index) {{
+          target->words[index] = left->words[index];
+        }}
+        if(target->size % word_bits != 0) {{
+          target->words[target->size / word_bits] &= (((size_t)1) << (target->size % word_bits)) - 1;
+        }}
+      """
+
+    with self.method(None, ("create", "symmetric", "difference"), {"target": out(self), "left": self, "right": self},
+      constraint=lambda: self.algebraic_operations,
+      optional_group="algebraic_operations",
+      brief="Construct bitwise XOR (symmetric difference) of two bit vectors",
+      description="""
+        Constructs target as the symmetric difference of two bit vectors: `target = left ^ right`.
+        Target size is max(left->size, right->size).
+
+        @param[out] target the uninitialized bit vector to construct
+        @param[in] left the first bit vector
+        @param[in] right the second bit vector
+      """) as m:
+      m.code = f"""
+        size_t word_bits = sizeof(size_t) * 8;
+        size_t max_size, left_words, right_words, common_words, index;
+        assert(target);
+        assert(left);
+        assert(right);
+        max_size = left->size >= right->size ? left->size : right->size;
+        {self.create_size(m.target, "max_size")};
+        left_words = (left->size + word_bits - 1) / word_bits;
+        right_words = (right->size + word_bits - 1) / word_bits;
+        common_words = left_words <= right_words ? left_words : right_words;
+        for(index = 0; index < common_words; ++index) {{
+          target->words[index] = left->words[index] ^ right->words[index];
+        }}
+        for(index = common_words; index < left_words; ++index) {{
+          target->words[index] = left->words[index];
+        }}
+        for(index = common_words; index < right_words; ++index) {{
+          target->words[index] = right->words[index];
         }}
         if(target->size % word_bits != 0) {{
           target->words[target->size / word_bits] &= (((size_t)1) << (target->size % word_bits)) - 1;

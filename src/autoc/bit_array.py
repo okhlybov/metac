@@ -1,6 +1,6 @@
 import autoc.std as std
 from autoc.hash import XorRot
-from autoc.core import inout, Composite, _StructRenderer
+from autoc.core import inout, out, Composite, _StructRenderer
 
 
 # Fixed-size stack-allocated bit array with set algebra operations
@@ -262,7 +262,7 @@ class Array(_StructRenderer, Composite):
 
     # --- set algebra (in-place) ---
 
-    with self.method(None, ("assign", "union"), {"target": inout(self), "source": self},
+    with self.method(None, ("apply", "union"), {"target": inout(self), "source": self},
       constraint=lambda: self.algebraic_operations,
       optional_group="algebraic_operations",
       brief="In-place bitwise OR (union)",
@@ -279,7 +279,7 @@ class Array(_StructRenderer, Composite):
         for(index = 0; index < {self._word_count}; ++index) target->words[index] |= source->words[index];
       """
 
-    with self.method(None, ("assign", "intersection"), {"target": inout(self), "source": self},
+    with self.method(None, ("apply", "intersection"), {"target": inout(self), "source": self},
       constraint=lambda: self.algebraic_operations,
       optional_group="algebraic_operations",
       brief="In-place bitwise AND (intersection)",
@@ -296,7 +296,7 @@ class Array(_StructRenderer, Composite):
         for(index = 0; index < {self._word_count}; ++index) target->words[index] &= source->words[index];
       """
 
-    with self.method(None, ("assign", "difference"), {"target": inout(self), "source": self},
+    with self.method(None, ("apply", "difference"), {"target": inout(self), "source": self},
       constraint=lambda: self.algebraic_operations,
       optional_group="algebraic_operations",
       brief="In-place bitwise AND NOT (difference)",
@@ -313,7 +313,7 @@ class Array(_StructRenderer, Composite):
         for(index = 0; index < {self._word_count}; ++index) target->words[index] &= (unsigned char)~source->words[index];
       """
 
-    with self.method(None, ("assign", "symmetric", "difference"), {"target": inout(self), "source": self},
+    with self.method(None, ("apply", "symmetric", "difference"), {"target": inout(self), "source": self},
       constraint=lambda: self.algebraic_operations,
       optional_group="algebraic_operations",
       brief="In-place bitwise XOR (symmetric difference)",
@@ -328,6 +328,84 @@ class Array(_StructRenderer, Composite):
         assert(target);
         assert(source);
         for(index = 0; index < {self._word_count}; ++index) target->words[index] ^= source->words[index];
+      """
+
+    # --- constructing algebraic operations ---
+
+    with self.method(None, ("create", "union"), {"target": out(self), "left": self, "right": self},
+      constraint=lambda: self.algebraic_operations,
+      optional_group="algebraic_operations",
+      brief="Construct bitwise OR (union) of two bit arrays",
+      description="""
+        Constructs target as the union of two bit arrays: `target = left | right`.
+
+        @param[out] target the uninitialized bit array to construct
+        @param[in] left the first bit array
+        @param[in] right the second bit array
+      """) as m:
+      m.code = f"""
+        size_t index;
+        assert(target);
+        assert(left);
+        assert(right);
+        for(index = 0; index < {self._word_count}; ++index) target->words[index] = left->words[index] | right->words[index];
+      """
+
+    with self.method(None, ("create", "intersection"), {"target": out(self), "left": self, "right": self},
+      constraint=lambda: self.algebraic_operations,
+      optional_group="algebraic_operations",
+      brief="Construct bitwise AND (intersection) of two bit arrays",
+      description="""
+        Constructs target as the intersection of two bit arrays: `target = left & right`.
+
+        @param[out] target the uninitialized bit array to construct
+        @param[in] left the first bit array
+        @param[in] right the second bit array
+      """) as m:
+      m.code = f"""
+        size_t index;
+        assert(target);
+        assert(left);
+        assert(right);
+        for(index = 0; index < {self._word_count}; ++index) target->words[index] = left->words[index] & right->words[index];
+      """
+
+    with self.method(None, ("create", "difference"), {"target": out(self), "left": self, "right": self},
+      constraint=lambda: self.algebraic_operations,
+      optional_group="algebraic_operations",
+      brief="Construct bitwise AND NOT (difference) of two bit arrays",
+      description="""
+        Constructs target as the difference of two bit arrays: `target = left & ~right`.
+
+        @param[out] target the uninitialized bit array to construct
+        @param[in] left the first bit array
+        @param[in] right the bit array to subtract
+      """) as m:
+      m.code = f"""
+        size_t index;
+        assert(target);
+        assert(left);
+        assert(right);
+        for(index = 0; index < {self._word_count}; ++index) target->words[index] = left->words[index] & (unsigned char)~right->words[index];
+      """
+
+    with self.method(None, ("create", "symmetric", "difference"), {"target": out(self), "left": self, "right": self},
+      constraint=lambda: self.algebraic_operations,
+      optional_group="algebraic_operations",
+      brief="Construct bitwise XOR (symmetric difference) of two bit arrays",
+      description="""
+        Constructs target as the symmetric difference of two bit arrays: `target = left ^ right`.
+
+        @param[out] target the uninitialized bit array to construct
+        @param[in] left the first bit array
+        @param[in] right the second bit array
+      """) as m:
+      m.code = f"""
+        size_t index;
+        assert(target);
+        assert(left);
+        assert(right);
+        for(index = 0; index < {self._word_count}; ++index) target->words[index] = left->words[index] ^ right->words[index];
       """
 
     # --- predicates ---

@@ -412,27 +412,71 @@ def emit_set(ctx):
     lines.append(f"{T.destroy(other)};")
     ctx.unit(name, "\n".join(lines), nlocs=3)
 
-  if active(T, "union"):
-    op_unit("union(): add missing elements", "union", (0, 1), (("put", 1), ("put", 2)),
-            f"TEST_EQUAL({T.union(ctx.t, other)}, 1);",
+  if active(T, "apply_union"):
+    op_unit("apply_union(): add missing elements", "apply_union", (0, 1), (("put", 1), ("put", 2)),
+            f"TEST_EQUAL({T.apply_union(ctx.t, other)}, 1);",
             [f"TEST_EQUAL({ctx.call('size', ctx.t)}, 3);",
              f"TEST_TRUE({ctx.call('contains', ctx.t, a2)});"])
-  if active(T, "difference"):
-    op_unit("difference(): drop shared elements", "difference", (0, 1, 2), (("put", 1),),
-            f"TEST_EQUAL({T.difference(ctx.t, other)}, 1);",
+  if active(T, "apply_difference"):
+    op_unit("apply_difference(): drop shared elements", "apply_difference", (0, 1, 2), (("put", 1),),
+            f"TEST_EQUAL({T.apply_difference(ctx.t, other)}, 1);",
             [f"TEST_EQUAL({ctx.call('size', ctx.t)}, 2);",
              f"TEST_FALSE({ctx.call('contains', ctx.t, a1)});"])
-  if active(T, "intersection"):
-    op_unit("intersection(): keep shared elements", "intersection", (0, 1), (("put", 1), ("put", 2)),
-            f"TEST_EQUAL({T.intersection(ctx.t, other)}, 1);",
+  if active(T, "apply_intersection"):
+    op_unit("apply_intersection(): keep shared elements", "apply_intersection", (0, 1), (("put", 1), ("put", 2)),
+            f"TEST_EQUAL({T.apply_intersection(ctx.t, other)}, 1);",
             [f"TEST_EQUAL({ctx.call('size', ctx.t)}, 1);",
              f"TEST_TRUE({ctx.call('contains', ctx.t, a1)});"])
-  if active(T, "symmetric_difference"):
-    op_unit("symmetric_difference(): keep unshared elements", "symmetric_difference", (0, 1), (("put", 1), ("put", 2)),
-            f"TEST_EQUAL({T.symmetric_difference(ctx.t, other)}, 2);",
+  if active(T, "apply_symmetric_difference"):
+    op_unit("apply_symmetric_difference(): keep unshared elements", "apply_symmetric_difference", (0, 1), (("put", 1), ("put", 2)),
+            f"TEST_EQUAL({T.apply_symmetric_difference(ctx.t, other)}, 2);",
             [f"TEST_TRUE({ctx.call('contains', ctx.t, a0)});",
              f"TEST_TRUE({ctx.call('contains', ctx.t, a2)});",
              f"TEST_FALSE({ctx.call('contains', ctx.t, a1)});"])
+
+  result_set = T.variable("result_set")
+
+  def create_op_unit(name, op_attr, tfill, ofill, call_stmt, asserts):
+    lines = [f"{other.definition}; {T.create(other)};",
+             f"{result_set.definition};"]
+    lines += [ctx.fill(i) for i in tfill]
+    lines += [f"{getattr(T, f_)(other, ctx.earg(i))};" for f_, i in ofill]
+    lines.append(call_stmt)
+    lines += asserts
+    lines.append(f"TEST_EQUAL({ctx.call('size', ctx.t)}, {len(tfill)});")
+    lines.append(f"TEST_EQUAL({ctx.call('size', other)}, {len(ofill)});")
+    lines.append(f"{T.destroy(result_set)};")
+    lines.append(f"{T.destroy(other)};")
+    ctx.unit(name, "\n".join(lines), nlocs=3)
+
+  if active(T, "create_union"):
+    create_op_unit("create_union(): construct union from immutable sources", "create_union", (0, 1), (("put", 1), ("put", 2)),
+                   f"{T.create_union(result_set, ctx.t, other)};",
+                   [f"TEST_EQUAL({ctx.call('size', result_set)}, 3);",
+                    f"TEST_TRUE({ctx.call('contains', result_set, a0)});",
+                    f"TEST_TRUE({ctx.call('contains', result_set, a1)});",
+                    f"TEST_TRUE({ctx.call('contains', result_set, a2)});"])
+  if active(T, "create_difference"):
+    create_op_unit("create_difference(): construct difference from immutable sources", "create_difference", (0, 1, 2), (("put", 1),),
+                   f"{T.create_difference(result_set, ctx.t, other)};",
+                   [f"TEST_EQUAL({ctx.call('size', result_set)}, 2);",
+                    f"TEST_TRUE({ctx.call('contains', result_set, a0)});",
+                    f"TEST_TRUE({ctx.call('contains', result_set, a2)});",
+                    f"TEST_FALSE({ctx.call('contains', result_set, a1)});"])
+  if active(T, "create_intersection"):
+    create_op_unit("create_intersection(): construct intersection from immutable sources", "create_intersection", (0, 1), (("put", 1), ("put", 2)),
+                   f"{T.create_intersection(result_set, ctx.t, other)};",
+                   [f"TEST_EQUAL({ctx.call('size', result_set)}, 1);",
+                    f"TEST_TRUE({ctx.call('contains', result_set, a1)});",
+                    f"TEST_FALSE({ctx.call('contains', result_set, a0)});",
+                    f"TEST_FALSE({ctx.call('contains', result_set, a2)});"])
+  if active(T, "create_symmetric_difference"):
+    create_op_unit("create_symmetric_difference(): construct symmetric difference from immutable sources", "create_symmetric_difference", (0, 1), (("put", 1), ("put", 2)),
+                   f"{T.create_symmetric_difference(result_set, ctx.t, other)};",
+                   [f"TEST_EQUAL({ctx.call('size', result_set)}, 2);",
+                    f"TEST_TRUE({ctx.call('contains', result_set, a0)});",
+                    f"TEST_TRUE({ctx.call('contains', result_set, a2)});",
+                    f"TEST_FALSE({ctx.call('contains', result_set, a1)});"])
   if active(T, "is_subset"):
     op_unit("is_subset()/is_superset(): subset relation", "is_subset", (0,), (("put", 0), ("put", 1)),
             f"TEST_TRUE({T.is_subset(ctx.t, other)});",

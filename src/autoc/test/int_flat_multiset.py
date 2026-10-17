@@ -196,7 +196,7 @@ x.unit("multialgebraic operations: union, intersection, difference, symmetric_di
   {type.put("&other", 20)};
   {type.put("&other", 30)}; /* other: [10, 20, 20, 30] */
 
-  TEST_EQUAL( {type.union(t, "&other")}, 2 );
+  TEST_EQUAL( {type.apply_union(t, "&other")}, 2 );
   TEST_EQUAL( {type.size(t)}, 5 );
   TEST_EQUAL( {type.count(t, 10)}, 2 );
   TEST_EQUAL( {type.count(t, 20)}, 2 );
@@ -209,7 +209,7 @@ x.unit("multialgebraic operations: union, intersection, difference, symmetric_di
 
   /* intersection: min multiplicities */
   /* t: [10, 10, 20, 20, 30], other: [10, 20, 20, 30] */
-  TEST_EQUAL( {type.intersection(t, "&other")}, 1 ); /* one 10 removed */
+  TEST_EQUAL( {type.apply_intersection(t, "&other")}, 1 ); /* one 10 removed */
   TEST_EQUAL( {type.size(t)}, 4 );
   TEST_EQUAL( {type.count(t, 10)}, 1 );
   TEST_EQUAL( {type.count(t, 20)}, 2 );
@@ -217,7 +217,7 @@ x.unit("multialgebraic operations: union, intersection, difference, symmetric_di
 
   /* difference: subtract multiplicities */
   /* t: [10, 20, 20, 30], other: [10, 20, 20, 30] -> self-difference clears */
-  TEST_EQUAL( {type.difference(t, t)}, 4 );
+  TEST_EQUAL( {type.apply_difference(t, t)}, 4 );
   TEST_EQUAL( {type.size(t)}, 0 );
 
   /* difference with distinct elements */
@@ -227,7 +227,7 @@ x.unit("multialgebraic operations: union, intersection, difference, symmetric_di
   {type.put(t, 20)};
   {type.put(t, 30)}; /* t: [10, 10, 10, 20, 30] */
 
-  TEST_EQUAL( {type.difference(t, "&other")}, 3 ); /* two 10s and one 20 subtracted */
+  TEST_EQUAL( {type.apply_difference(t, "&other")}, 3 ); /* two 10s and one 20 subtracted */
   TEST_EQUAL( {type.size(t)}, 2 );
   TEST_EQUAL( {type.count(t, 10)}, 2 );
   TEST_EQUAL( {type.count(t, 20)}, 0 );
@@ -241,7 +241,7 @@ x.unit("multialgebraic operations: union, intersection, difference, symmetric_di
   {type.put(t, 20)}; /* t: [10, 10, 20] */
   /* other: [10, 20, 20, 30] */
   /* sym_diff: |2-1| 10s = 1, |1-2| 20s = 1, |0-1| 30s = 1 -> [10, 20, 30], 2 removed + 2 added = 4 changed */
-  TEST_EQUAL( {type.symmetric_difference(t, "&other")}, 4 );
+  TEST_EQUAL( {type.apply_symmetric_difference(t, "&other")}, 4 );
   TEST_EQUAL( {type.size(t)}, 3 );
   TEST_EQUAL( {type.count(t, 10)}, 1 );
   TEST_EQUAL( {type.count(t, 20)}, 1 );

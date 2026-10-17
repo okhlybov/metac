@@ -503,7 +503,7 @@ class Set(_StructRenderer, autoc.set.Set, Ordered):
 
     # The consuming implementations of the algebraic operations: both operands are merged
     # at the node level and the other set is left empty
-    with self.method("int", "union", {"target": inout(self), "other": inout(self)}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Add all elements from other set",
+    with self.method("int", ("apply", "union"), {"target": inout(self), "other": inout(self)}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Add all elements from other set",
       description="""
         Merges the two node trees at the node level in expected O(m log(n/m)). The other
         set's nodes are taken over so it is left empty - both operands must be distinct
@@ -527,7 +527,7 @@ class Set(_StructRenderer, autoc.set.Set, Ordered):
         return target->size - previous;
       """
 
-    with self.method("int", "difference", {"target": inout(self), "other": inout(self)}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Remove all elements found in other set",
+    with self.method("int", ("apply", "difference"), {"target": inout(self), "other": inout(self)}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Remove all elements found in other set",
       description="""
         Removes the nodes whose elements the other tree holds at the node level in expected
         O(m log(n/m)). The other set's nodes are taken over so it is left empty - both
@@ -556,7 +556,7 @@ class Set(_StructRenderer, autoc.set.Set, Ordered):
         return previous - target->size;
       """
 
-    with self.method("int", "intersection", {"target": inout(self), "other": inout(self)}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Keep only elements also present in other set",
+    with self.method("int", ("apply", "intersection"), {"target": inout(self), "other": inout(self)}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Keep only elements also present in other set",
       description="""
         Keeps the nodes whose elements the other tree holds at the node level in expected
         O(m log(n/m)). The other set's nodes are taken over so it is left empty - both
@@ -580,7 +580,7 @@ class Set(_StructRenderer, autoc.set.Set, Ordered):
         return previous - target->size;
       """
 
-    with self.method("int", ("symmetric", "difference"), {"target": inout(self), "other": inout(self)}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Remove elements in both sets, add elements in only one",
+    with self.method("int", ("apply", "symmetric", "difference"), {"target": inout(self), "other": inout(self)}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Remove elements in both sets, add elements in only one",
       description="""
         Produces the tree holding the elements present in exactly one of the sets at the
         node level in expected O(m log(n/m)). The other set's nodes are taken over so it

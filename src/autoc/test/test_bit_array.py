@@ -6,6 +6,7 @@ x = Type(type := Array("test_bitarray", 20))
 t = type.variable("t")
 t1 = type.variable("t1")
 t2 = type.variable("t2")
+t3 = type.variable("t3")
 
 
 x.setup(f"""
@@ -138,7 +139,7 @@ x.unit(f"{type.copy}(): copy bitset", f"""
   TEST_TRUE( {type.test(t2, 19)} );
 """)
 
-x.unit(f"{type.assign_union}(): union", f"""
+x.unit(f"{type.apply_union}(): union", f"""
   {t1.definition};
   {t2.definition};
   {type.create(t1)};
@@ -147,14 +148,14 @@ x.unit(f"{type.assign_union}(): union", f"""
   {type.set(t1, 5)};
   {type.set(t2, 5)};
   {type.set(t2, 10)};
-  {type.assign_union(t1, t2)};
+  {type.apply_union(t1, t2)};
   TEST_TRUE( {type.test(t1, 0)} );
   TEST_TRUE( {type.test(t1, 5)} );
   TEST_TRUE( {type.test(t1, 10)} );
   TEST_EQUAL( {type.count(t1)}, 3 );
 """)
 
-x.unit(f"{type.assign_intersection}(): intersection", f"""
+x.unit(f"{type.apply_intersection}(): intersection", f"""
   {t1.definition};
   {t2.definition};
   {type.create(t1)};
@@ -165,7 +166,7 @@ x.unit(f"{type.assign_intersection}(): intersection", f"""
   {type.set(t2, 5)};
   {type.set(t2, 10)};
   {type.set(t2, 15)};
-  {type.assign_intersection(t1, t2)};
+  {type.apply_intersection(t1, t2)};
   TEST_FALSE( {type.test(t1, 0)} );
   TEST_TRUE( {type.test(t1, 5)} );
   TEST_TRUE( {type.test(t1, 10)} );
@@ -173,7 +174,7 @@ x.unit(f"{type.assign_intersection}(): intersection", f"""
   TEST_EQUAL( {type.count(t1)}, 2 );
 """)
 
-x.unit(f"{type.assign_difference}(): difference", f"""
+x.unit(f"{type.apply_difference}(): difference", f"""
   {t1.definition};
   {t2.definition};
   {type.create(t1)};
@@ -183,14 +184,14 @@ x.unit(f"{type.assign_difference}(): difference", f"""
   {type.set(t1, 10)};
   {type.set(t2, 5)};
   {type.set(t2, 15)};
-  {type.assign_difference(t1, t2)};
+  {type.apply_difference(t1, t2)};
   TEST_TRUE( {type.test(t1, 0)} );
   TEST_FALSE( {type.test(t1, 5)} );
   TEST_TRUE( {type.test(t1, 10)} );
   TEST_EQUAL( {type.count(t1)}, 2 );
 """)
 
-x.unit(f"{type.assign_symmetric_difference}(): symmetric difference", f"""
+x.unit(f"{type.apply_symmetric_difference}(): symmetric difference", f"""
   {t1.definition};
   {t2.definition};
   {type.create(t1)};
@@ -199,11 +200,95 @@ x.unit(f"{type.assign_symmetric_difference}(): symmetric difference", f"""
   {type.set(t1, 5)};
   {type.set(t2, 5)};
   {type.set(t2, 10)};
-  {type.assign_symmetric_difference(t1, t2)};
+  {type.apply_symmetric_difference(t1, t2)};
   TEST_TRUE( {type.test(t1, 0)} );
   TEST_FALSE( {type.test(t1, 5)} );
   TEST_TRUE( {type.test(t1, 10)} );
   TEST_EQUAL( {type.count(t1)}, 2 );
+""")
+
+x.unit(f"{type.create_union}(): constructing union from immutable sources", f"""
+  {t1.definition};
+  {t2.definition};
+  {t3.definition};
+  {type.create(t1)};
+  {type.create(t2)};
+  {type.set(t1, 0)};
+  {type.set(t1, 5)};
+  {type.set(t2, 5)};
+  {type.set(t2, 10)};
+  {type.create_union(t3, t1, t2)};
+  TEST_TRUE( {type.test(t3, 0)} );
+  TEST_TRUE( {type.test(t3, 5)} );
+  TEST_TRUE( {type.test(t3, 10)} );
+  TEST_EQUAL( {type.count(t3)}, 3 );
+  /* Inputs unmodified */
+  TEST_EQUAL( {type.count(t1)}, 2 );
+  TEST_EQUAL( {type.count(t2)}, 2 );
+""")
+
+x.unit(f"{type.create_intersection}(): constructing intersection from immutable sources", f"""
+  {t1.definition};
+  {t2.definition};
+  {t3.definition};
+  {type.create(t1)};
+  {type.create(t2)};
+  {type.set(t1, 0)};
+  {type.set(t1, 5)};
+  {type.set(t1, 10)};
+  {type.set(t2, 5)};
+  {type.set(t2, 10)};
+  {type.set(t2, 15)};
+  {type.create_intersection(t3, t1, t2)};
+  TEST_FALSE( {type.test(t3, 0)} );
+  TEST_TRUE( {type.test(t3, 5)} );
+  TEST_TRUE( {type.test(t3, 10)} );
+  TEST_FALSE( {type.test(t3, 15)} );
+  TEST_EQUAL( {type.count(t3)}, 2 );
+  /* Inputs unmodified */
+  TEST_EQUAL( {type.count(t1)}, 3 );
+  TEST_EQUAL( {type.count(t2)}, 3 );
+""")
+
+x.unit(f"{type.create_difference}(): constructing difference from immutable sources", f"""
+  {t1.definition};
+  {t2.definition};
+  {t3.definition};
+  {type.create(t1)};
+  {type.create(t2)};
+  {type.set(t1, 0)};
+  {type.set(t1, 5)};
+  {type.set(t1, 10)};
+  {type.set(t2, 5)};
+  {type.set(t2, 15)};
+  {type.create_difference(t3, t1, t2)};
+  TEST_TRUE( {type.test(t3, 0)} );
+  TEST_FALSE( {type.test(t3, 5)} );
+  TEST_TRUE( {type.test(t3, 10)} );
+  TEST_EQUAL( {type.count(t3)}, 2 );
+  /* Inputs unmodified */
+  TEST_EQUAL( {type.count(t1)}, 3 );
+  TEST_EQUAL( {type.count(t2)}, 2 );
+""")
+
+x.unit(f"{type.create_symmetric_difference}(): constructing symmetric difference from immutable sources", f"""
+  {t1.definition};
+  {t2.definition};
+  {t3.definition};
+  {type.create(t1)};
+  {type.create(t2)};
+  {type.set(t1, 0)};
+  {type.set(t1, 5)};
+  {type.set(t2, 5)};
+  {type.set(t2, 10)};
+  {type.create_symmetric_difference(t3, t1, t2)};
+  TEST_TRUE( {type.test(t3, 0)} );
+  TEST_FALSE( {type.test(t3, 5)} );
+  TEST_TRUE( {type.test(t3, 10)} );
+  TEST_EQUAL( {type.count(t3)}, 2 );
+  /* Inputs unmodified */
+  TEST_EQUAL( {type.count(t1)}, 2 );
+  TEST_EQUAL( {type.count(t2)}, 2 );
 """)
 
 x.unit(f"{type.is_subset}(): subset test", f"""

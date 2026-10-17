@@ -56,10 +56,14 @@ assert arr_sort.sorted.active
 
 # 2. Verify algebraic_operations on ChainedHashSet, TreapSet, and BitSet
 s_noalg = ChainedHashSet("s_noalg", "int", algebraic_operations=False)
-assert not s_noalg.union.active
-assert not s_noalg.difference.active
-assert not s_noalg.intersection.active
-assert not s_noalg.symmetric_difference.active
+assert not s_noalg.apply_union.active
+assert not s_noalg.apply_difference.active
+assert not s_noalg.apply_intersection.active
+assert not s_noalg.apply_symmetric_difference.active
+assert not s_noalg.create_union.active
+assert not s_noalg.create_difference.active
+assert not s_noalg.create_intersection.active
+assert not s_noalg.create_symmetric_difference.active
 assert not s_noalg.is_subset.active
 assert not s_noalg.is_superset.active
 assert s_noalg.put.active
@@ -67,22 +71,31 @@ assert s_noalg.remove.active
 assert s_noalg.contains.active
 
 s_alg = ChainedHashSet("s_alg", "int")
-assert s_alg.union.active
+assert s_alg.apply_union.active
+assert s_alg.create_union.active
 assert s_alg.is_subset.active
 
 ts_noalg = TreapSet("ts_noalg", "int", algebraic_operations=False)
-assert not ts_noalg.union.active
-assert not ts_noalg.difference.active
-assert not ts_noalg.intersection.active
-assert not ts_noalg.symmetric_difference.active
+assert not ts_noalg.apply_union.active
+assert not ts_noalg.apply_difference.active
+assert not ts_noalg.apply_intersection.active
+assert not ts_noalg.apply_symmetric_difference.active
+assert not ts_noalg.create_union.active
+assert not ts_noalg.create_difference.active
+assert not ts_noalg.create_intersection.active
+assert not ts_noalg.create_symmetric_difference.active
 assert ts_noalg.put.active
 assert ts_noalg.contains.active
 
 fms_noalg = FlatMultiset("fms_noalg", "int", algebraic_operations=False)
-assert not fms_noalg.union.active
-assert not fms_noalg.difference.active
-assert not fms_noalg.intersection.active
-assert not fms_noalg.symmetric_difference.active
+assert not fms_noalg.apply_union.active
+assert not fms_noalg.apply_difference.active
+assert not fms_noalg.apply_intersection.active
+assert not fms_noalg.apply_symmetric_difference.active
+assert not fms_noalg.create_union.active
+assert not fms_noalg.create_difference.active
+assert not fms_noalg.create_intersection.active
+assert not fms_noalg.create_symmetric_difference.active
 assert not fms_noalg.is_subset.active
 assert not fms_noalg.is_superset.active
 assert fms_noalg.put.active
@@ -91,56 +104,81 @@ assert fms_noalg.wipe.active
 assert fms_noalg.count.active
 
 fms_alg = FlatMultiset("fms_alg", "int")
-assert fms_alg.union.active
-assert fms_alg.difference.active
-assert fms_alg.intersection.active
-assert fms_alg.symmetric_difference.active
+assert fms_alg.apply_union.active
+assert fms_alg.apply_difference.active
+assert fms_alg.apply_intersection.active
+assert fms_alg.apply_symmetric_difference.active
+assert fms_alg.create_union.active
+assert fms_alg.create_difference.active
+assert fms_alg.create_intersection.active
+assert fms_alg.create_symmetric_difference.active
 assert fms_alg.is_subset.active
 assert fms_alg.is_superset.active
-assert fms_alg.union.optional_group == "algebraic_operations"
+assert fms_alg.apply_union.optional_group == "algebraic_operations"
+assert fms_alg.create_union.optional_group == "algebraic_operations"
 
 
 ba_noalg = BitArray("ba_noalg", 32, algebraic_operations=False)
-assert not ba_noalg.assign_union.active
-assert not ba_noalg.assign_intersection.active
-assert not ba_noalg.assign_difference.active
-assert not ba_noalg.assign_symmetric_difference.active
+assert not ba_noalg.apply_union.active
+assert not ba_noalg.apply_intersection.active
+assert not ba_noalg.apply_difference.active
+assert not ba_noalg.apply_symmetric_difference.active
+assert not ba_noalg.create_union.active
+assert not ba_noalg.create_intersection.active
+assert not ba_noalg.create_difference.active
+assert not ba_noalg.create_symmetric_difference.active
 assert not ba_noalg.is_subset.active
 assert ba_noalg.test.active
 assert ba_noalg.set.active
 assert ba_noalg.count.active
 
 ba_alg = BitArray("ba_alg", 32)
-assert ba_alg.assign_union.active
+assert ba_alg.apply_union.active
+assert ba_alg.create_union.active
 assert ba_alg.is_subset.active
 
 bv_noalg = BitVector("bv_noalg", algebraic_operations=False)
-assert not bv_noalg.assign_union.active
-assert not bv_noalg.assign_intersection.active
-assert not bv_noalg.assign_difference.active
-assert not bv_noalg.assign_symmetric_difference.active
+assert not bv_noalg.apply_union.active
+assert not bv_noalg.apply_intersection.active
+assert not bv_noalg.apply_difference.active
+assert not bv_noalg.apply_symmetric_difference.active
+assert not bv_noalg.create_union.active
+assert not bv_noalg.create_intersection.active
+assert not bv_noalg.create_difference.active
+assert not bv_noalg.create_symmetric_difference.active
 assert not bv_noalg.is_subset.active
 assert bv_noalg.test.active
 assert bv_noalg.set.active
 assert bv_noalg.count.active
 
 bv_alg = BitVector("bv_alg")
-assert bv_alg.assign_union.active
+assert bv_alg.apply_union.active
+assert bv_alg.create_union.active
 assert bv_alg.is_subset.active
 
 cnt_noalg = Counter("cnt_noalg", "int", autoc.flat_map.Map, algebraic_operations=False)
-assert not cnt_noalg.assign_union.active
-assert not cnt_noalg.assign_intersection.active
-assert not cnt_noalg.assign_difference.active
+assert not cnt_noalg.apply_union.active
+assert not cnt_noalg.apply_intersection.active
+assert not cnt_noalg.apply_difference.active
+assert not cnt_noalg.apply_symmetric_difference.active
+assert not cnt_noalg.create_union.active
+assert not cnt_noalg.create_intersection.active
+assert not cnt_noalg.create_difference.active
+assert not cnt_noalg.create_symmetric_difference.active
 assert not cnt_noalg.is_subset.active
 assert cnt_noalg.add.active
 assert cnt_noalg.remove.active
 assert cnt_noalg.count.active
 
 cnt_alg = Counter("cnt_alg", "int", autoc.flat_map.Map)
-assert cnt_alg.assign_union.active
-assert cnt_alg.assign_intersection.active
-assert cnt_alg.assign_difference.active
+assert cnt_alg.apply_union.active
+assert cnt_alg.apply_intersection.active
+assert cnt_alg.apply_difference.active
+assert cnt_alg.apply_symmetric_difference.active
+assert cnt_alg.create_union.active
+assert cnt_alg.create_intersection.active
+assert cnt_alg.create_difference.active
+assert cnt_alg.create_symmetric_difference.active
 assert cnt_alg.is_subset.active
 
 
@@ -173,12 +211,14 @@ assert sbuf_format.push_double.active
 # 4. Verify enclosing consumers explicitly set disabled features
 cmap = ChainedHashMap("cmap_test", "int", "int")
 assert cmap._set.algebraic_operations is False
-assert not cmap._set.union.active
+assert not cmap._set.apply_union.active
+assert not cmap._set.create_union.active
 assert not cmap._set.is_subset.active
 
 tmap = TreeMap("tmap_test", "int", "int", TreapSet)
 assert tmap._set.algebraic_operations is False
-assert not tmap._set.union.active
+assert not tmap._set.apply_union.active
+assert not tmap._set.create_union.active
 
 sbuf = StringBuffer("sbuf_test")
 assert sbuf._string.formatting_operations is False
@@ -254,31 +294,48 @@ assert v_sort.lower_bound.optional_group == "sorting_operations"
 assert v_sort.upper_bound.optional_group == "sorting_operations"
 assert v_sort.push.optional_group is None
 
-assert s_alg.union.optional_group == "algebraic_operations"
-assert s_alg.difference.optional_group == "algebraic_operations"
-assert s_alg.intersection.optional_group == "algebraic_operations"
-assert s_alg.symmetric_difference.optional_group == "algebraic_operations"
+assert s_alg.apply_union.optional_group == "algebraic_operations"
+assert s_alg.apply_difference.optional_group == "algebraic_operations"
+assert s_alg.apply_intersection.optional_group == "algebraic_operations"
+assert s_alg.apply_symmetric_difference.optional_group == "algebraic_operations"
+assert s_alg.create_union.optional_group == "algebraic_operations"
+assert s_alg.create_difference.optional_group == "algebraic_operations"
+assert s_alg.create_intersection.optional_group == "algebraic_operations"
+assert s_alg.create_symmetric_difference.optional_group == "algebraic_operations"
 assert s_alg.is_subset.optional_group == "algebraic_operations"
 assert s_alg.is_superset.optional_group == "algebraic_operations"
 assert s_alg.put.optional_group is None
 
-assert ba_alg.assign_union.optional_group == "algebraic_operations"
-assert ba_alg.assign_intersection.optional_group == "algebraic_operations"
-assert ba_alg.assign_difference.optional_group == "algebraic_operations"
-assert ba_alg.assign_symmetric_difference.optional_group == "algebraic_operations"
+assert ba_alg.apply_union.optional_group == "algebraic_operations"
+assert ba_alg.apply_intersection.optional_group == "algebraic_operations"
+assert ba_alg.apply_difference.optional_group == "algebraic_operations"
+assert ba_alg.apply_symmetric_difference.optional_group == "algebraic_operations"
+assert ba_alg.create_union.optional_group == "algebraic_operations"
+assert ba_alg.create_intersection.optional_group == "algebraic_operations"
+assert ba_alg.create_difference.optional_group == "algebraic_operations"
+assert ba_alg.create_symmetric_difference.optional_group == "algebraic_operations"
 assert ba_alg.is_subset.optional_group == "algebraic_operations"
 assert ba_alg.test.optional_group is None
 
-assert bv_alg.assign_union.optional_group == "algebraic_operations"
-assert bv_alg.assign_intersection.optional_group == "algebraic_operations"
-assert bv_alg.assign_difference.optional_group == "algebraic_operations"
-assert bv_alg.assign_symmetric_difference.optional_group == "algebraic_operations"
+assert bv_alg.apply_union.optional_group == "algebraic_operations"
+assert bv_alg.apply_intersection.optional_group == "algebraic_operations"
+assert bv_alg.apply_difference.optional_group == "algebraic_operations"
+assert bv_alg.apply_symmetric_difference.optional_group == "algebraic_operations"
+assert bv_alg.create_union.optional_group == "algebraic_operations"
+assert bv_alg.create_intersection.optional_group == "algebraic_operations"
+assert bv_alg.create_difference.optional_group == "algebraic_operations"
+assert bv_alg.create_symmetric_difference.optional_group == "algebraic_operations"
 assert bv_alg.is_subset.optional_group == "algebraic_operations"
 assert bv_alg.test.optional_group is None
 
-assert cnt_alg.assign_union.optional_group == "algebraic_operations"
-assert cnt_alg.assign_intersection.optional_group == "algebraic_operations"
-assert cnt_alg.assign_difference.optional_group == "algebraic_operations"
+assert cnt_alg.apply_union.optional_group == "algebraic_operations"
+assert cnt_alg.apply_intersection.optional_group == "algebraic_operations"
+assert cnt_alg.apply_difference.optional_group == "algebraic_operations"
+assert cnt_alg.apply_symmetric_difference.optional_group == "algebraic_operations"
+assert cnt_alg.create_union.optional_group == "algebraic_operations"
+assert cnt_alg.create_intersection.optional_group == "algebraic_operations"
+assert cnt_alg.create_difference.optional_group == "algebraic_operations"
+assert cnt_alg.create_symmetric_difference.optional_group == "algebraic_operations"
 assert cnt_alg.is_subset.optional_group == "algebraic_operations"
 assert cnt_alg.add.optional_group is None
 
@@ -298,7 +355,7 @@ rendered_doc = str().join(stream)
 assert "_An optional operation belonging to the Sortable function group._" in rendered_doc
 
 stream = []
-s_alg.union._render_documentation(stream, True)
+s_alg.apply_union._render_documentation(stream, True)
 rendered_doc = str().join(stream)
 assert "_An optional operation belonging to the AlgebraicSet function group._" in rendered_doc
 

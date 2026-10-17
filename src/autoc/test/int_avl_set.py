@@ -284,37 +284,37 @@ x.cleanup(f"""
   {type.destroy(o)};
 """)
 
-x.unit(f"{type.union}(): union adds elements from other set", f"""
+x.unit(f"{type.apply_union}(): union adds elements from other set", f"""
   {type.put(t, 1)}; {type.put(t, 2)}; {type.put(t, 3)};
   {type.put(o, 3)}; {type.put(o, 4)}; {type.put(o, 5)};
-  TEST_EQUAL( {type.union(t, o)}, 2 );
+  TEST_EQUAL( {type.apply_union(t, o)}, 2 );
   TEST_EQUAL( {type.size(t)}, 5 );
   TEST_TRUE( {type.contains(t, 4)} );
   TEST_TRUE( {type.contains(t, 5)} );
   TEST_EQUAL( {type.size(o)}, 3 );
 """)
 
-x.unit(f"{type.difference}(): difference removes common elements", f"""
+x.unit(f"{type.apply_difference}(): difference removes common elements", f"""
   {type.put(t, 1)}; {type.put(t, 2)}; {type.put(t, 3)};
   {type.put(o, 2)}; {type.put(o, 3)}; {type.put(o, 4)};
-  TEST_EQUAL( {type.difference(t, o)}, 2 );
+  TEST_EQUAL( {type.apply_difference(t, o)}, 2 );
   TEST_EQUAL( {type.size(t)}, 1 );
   TEST_TRUE( {type.contains(t, 1)} );
 """)
 
-x.unit(f"{type.intersection}(): intersection keeps only common elements", f"""
+x.unit(f"{type.apply_intersection}(): intersection keeps only common elements", f"""
   {type.put(t, 1)}; {type.put(t, 2)}; {type.put(t, 3)};
   {type.put(o, 2)}; {type.put(o, 3)}; {type.put(o, 4)};
-  TEST_EQUAL( {type.intersection(t, o)}, 1 );
+  TEST_EQUAL( {type.apply_intersection(t, o)}, 1 );
   TEST_EQUAL( {type.size(t)}, 2 );
   TEST_TRUE( {type.contains(t, 2)} );
   TEST_TRUE( {type.contains(t, 3)} );
 """)
 
-x.unit(f"{type.symmetric_difference}(): keeps uncommon elements", f"""
+x.unit(f"{type.apply_symmetric_difference}(): keeps uncommon elements", f"""
   {type.put(t, 1)}; {type.put(t, 2)}; {type.put(t, 3)};
   {type.put(o, 2)}; {type.put(o, 3)}; {type.put(o, 4)};
-  TEST_EQUAL( {type.symmetric_difference(t, o)}, 3 );
+  TEST_EQUAL( {type.apply_symmetric_difference(t, o)}, 3 );
   TEST_EQUAL( {type.size(t)}, 2 );
   TEST_TRUE( {type.contains(t, 1)} );
   TEST_TRUE( {type.contains(t, 4)} );

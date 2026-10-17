@@ -362,7 +362,7 @@ class Counter(_StructRenderer, Multiset):
     r = self.range.variable("r")
     elem = self.element.variable("elem")
 
-    with self.union as m:
+    with self.apply_union as m:
       m.code = lambda m: f"""
         size_t added = 0;
         {r.definition};
@@ -381,7 +381,7 @@ class Counter(_StructRenderer, Multiset):
         return added;
       """
 
-    with self.difference as m:
+    with self.apply_difference as m:
       m.code = lambda m: f"""
         size_t removed = 0;
         {r.definition};
@@ -400,7 +400,7 @@ class Counter(_StructRenderer, Multiset):
         return removed;
       """
 
-    with self.intersection as m:
+    with self.apply_intersection as m:
       temp = self.variable("temp")
       m.code = lambda m: f"""
         size_t removed = 0;
@@ -425,7 +425,7 @@ class Counter(_StructRenderer, Multiset):
         return removed;
       """
 
-    with self.symmetric_difference as m:
+    with self.apply_symmetric_difference as m:
       temp = self.variable("temp")
       m.code = lambda m: f"""
         size_t changed = 0;
@@ -467,6 +467,122 @@ class Counter(_StructRenderer, Multiset):
         return changed;
       """
 
+    with self.create_union as m:
+      m.code = lambda m: f"""
+        {r.definition};
+        assert(target);
+        assert({m.left});
+        assert({m.right});
+        if({m.left} == {m.right}) {{
+          {self.copy(m.target, m.left)};
+          return;
+        }}
+        if({m.left}->total_size >= {m.right}->total_size) {{
+          {self.copy(m.target, m.left)};
+          for({r} = {self.range.new(m.right)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
+            {elem.definition} = {self.range.front(r)};
+            size_t o_cnt = {self.range.count(r)};
+            size_t t_cnt = {self.count(m.target, elem)};
+            if(o_cnt > t_cnt) {{
+              {self.add(m.target, elem, "o_cnt - t_cnt")};
+            }}
+          }}
+        }} else {{
+          {self.copy(m.target, m.right)};
+          for({r} = {self.range.new(m.left)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
+            {elem.definition} = {self.range.front(r)};
+            size_t o_cnt = {self.range.count(r)};
+            size_t t_cnt = {self.count(m.target, elem)};
+            if(o_cnt > t_cnt) {{
+              {self.add(m.target, elem, "o_cnt - t_cnt")};
+            }}
+          }}
+        }}
+      """
+
+    with self.create_intersection as m:
+      m.code = lambda m: f"""
+        {r.definition};
+        assert(target);
+        assert({m.left});
+        assert({m.right});
+        if({m.left} == {m.right}) {{
+          {self.copy(m.target, m.left)};
+          return;
+        }}
+        {self.create(m.target)};
+        if({self.distinct_size(m.left)} <= {self.distinct_size(m.right)}) {{
+          for({r} = {self.range.new(m.left)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
+            {elem.definition} = {self.range.front(r)};
+            size_t o_cnt = {self.count(m.right, elem)};
+            if(o_cnt > 0) {{
+              size_t l_cnt = {self.range.count(r)};
+              {self.add(m.target, elem, "l_cnt < o_cnt ? l_cnt : o_cnt")};
+            }}
+          }}
+        }} else {{
+          for({r} = {self.range.new(m.right)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
+            {elem.definition} = {self.range.front(r)};
+            size_t o_cnt = {self.count(m.left, elem)};
+            if(o_cnt > 0) {{
+              size_t r_cnt = {self.range.count(r)};
+              {self.add(m.target, elem, "r_cnt < o_cnt ? r_cnt : o_cnt")};
+            }}
+          }}
+        }}
+      """
+
+    with self.create_difference as m:
+      m.code = lambda m: f"""
+        {r.definition};
+        assert(target);
+        assert({m.left});
+        assert({m.right});
+        if({m.left} == {m.right}) {{
+          {self.create(m.target)};
+          return;
+        }}
+        if({m.right}->total_size == 0) {{
+          {self.copy(m.target, m.left)};
+          return;
+        }}
+        {self.create(m.target)};
+        for({r} = {self.range.new(m.left)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
+          {elem.definition} = {self.range.front(r)};
+          size_t l_cnt = {self.range.count(r)};
+          size_t r_cnt = {self.count(m.right, elem)};
+          if(l_cnt > r_cnt) {{
+            {self.add(m.target, elem, "l_cnt - r_cnt")};
+          }}
+        }}
+      """
+
+    with self.create_symmetric_difference as m:
+      m.code = lambda m: f"""
+        {r.definition};
+        assert(target);
+        assert({m.left});
+        assert({m.right});
+        {self.create(m.target)};
+        if({m.left} == {m.right}) return;
+        for({r} = {self.range.new(m.left)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
+          {elem.definition} = {self.range.front(r)};
+          size_t l_cnt = {self.range.count(r)};
+          size_t r_cnt = {self.count(m.right, elem)};
+          if(l_cnt > r_cnt) {{
+            {self.add(m.target, elem, "l_cnt - r_cnt")};
+          }}
+        }}
+        for({r} = {self.range.new(m.right)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
+          {elem.definition} = {self.range.front(r)};
+          size_t r_cnt = {self.range.count(r)};
+          size_t l_cnt = {self.count(m.left, elem)};
+          if(r_cnt > l_cnt) {{
+            {self.add(m.target, elem, "r_cnt - l_cnt")};
+          }}
+        }}
+      """
+
     with self.is_subset as m:
       m.code = lambda m: f"""
         {r.definition};
@@ -488,51 +604,6 @@ class Counter(_StructRenderer, Multiset):
         assert(target);
         assert(other);
         return {self.is_subset(m.other, m.target)};
-      """
-
-    with self.method(None, ("assign", "union"), {"target": inout(self), "other": self},
-      constraint=lambda: self.algebraic_operations,
-      optional_group="algebraic_operations",
-      brief="In-place multiset union (maximum multiplicities)",
-      description="""
-        Updates target so that for each element, count(target) = max(count(target), count(other)).
-        Alias for `union`.
-
-        @param[in,out] target the destination counter
-        @param[in] other the counter to unite with
-      """) as m:
-      m.inline_code = lambda m: f"""
-        ((void){self.union(m.target, m.other)});
-      """
-
-    with self.method(None, ("assign", "intersection"), {"target": inout(self), "other": self},
-      constraint=lambda: self.algebraic_operations,
-      optional_group="algebraic_operations",
-      brief="In-place multiset intersection (minimum multiplicities)",
-      description="""
-        Updates target so that for each element, count(target) = min(count(target), count(other)).
-        Alias for `intersection`.
-
-        @param[in,out] target the destination counter
-        @param[in] other the counter to intersect with
-      """) as m:
-      m.inline_code = lambda m: f"""
-        ((void){self.intersection(m.target, m.other)});
-      """
-
-    with self.method(None, ("assign", "difference"), {"target": inout(self), "other": self},
-      constraint=lambda: self.algebraic_operations,
-      optional_group="algebraic_operations",
-      brief="In-place multiset difference",
-      description="""
-        Subtracts the multiplicities of elements in `other` from `target`.
-        Alias for `difference`.
-
-        @param[in,out] target the counter to subtract from
-        @param[in] other the counter whose multiplicities are subtracted
-      """) as m:
-      m.inline_code = lambda m: f"""
-        ((void){self.difference(m.target, m.other)});
       """
 
 

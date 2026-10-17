@@ -6,6 +6,7 @@ x = Type(type := Vector("test_bitvector"))
 t = type.variable("t")
 t1 = type.variable("t1")
 t2 = type.variable("t2")
+t3 = type.variable("t3")
 
 
 x.setup(f"""
@@ -152,7 +153,7 @@ x.unit(f"{type.copy}()/{type.move}(): value semantics", f"""
   {type.destroy(t2)};
 """)
 
-x.unit(f"{type.assign_union}(): bitwise union", f"""
+x.unit(f"{type.apply_union}(): bitwise union", f"""
   {t1.definition};
   {t2.definition};
   {type.create(t1)};
@@ -165,7 +166,7 @@ x.unit(f"{type.assign_union}(): bitwise union", f"""
   {type.set(t2, 3, 1)};
   {type.set(t2, 5, 1)};
 
-  {type.assign_union(t1, t2)};
+  {type.apply_union(t1, t2)};
   TEST_EQUAL( {type.get(t1, 1)}, 1 );
   TEST_EQUAL( {type.get(t1, 3)}, 1 );
   TEST_EQUAL( {type.get(t1, 5)}, 1 );
@@ -176,7 +177,7 @@ x.unit(f"{type.assign_union}(): bitwise union", f"""
   {type.destroy(t2)};
 """)
 
-x.unit(f"{type.assign_intersection}(): bitwise intersection", f"""
+x.unit(f"{type.apply_intersection}(): bitwise intersection", f"""
   {t1.definition};
   {t2.definition};
   {type.create(t1)};
@@ -189,12 +190,179 @@ x.unit(f"{type.assign_intersection}(): bitwise intersection", f"""
   {type.set(t2, 3, 1)};
   {type.set(t2, 5, 1)};
 
-  {type.assign_intersection(t1, t2)};
+  {type.apply_intersection(t1, t2)};
   TEST_EQUAL( {type.get(t1, 1)}, 0 );
   TEST_EQUAL( {type.get(t1, 3)}, 1 );
   TEST_EQUAL( {type.get(t1, 5)}, 0 );
   TEST_EQUAL( {type.count(t1)}, 1 );
 
+  {type.destroy(t1)};
+  {type.destroy(t2)};
+""")
+
+x.unit(f"{type.apply_difference}(): bitwise difference", f"""
+  {t1.definition};
+  {t2.definition};
+  {type.create(t1)};
+  {type.create(t2)};
+
+  {type.resize(t1, 10)};
+  {type.resize(t2, 10)};
+  {type.set(t1, 1, 1)};
+  {type.set(t1, 3, 1)};
+  {type.set(t2, 3, 1)};
+  {type.set(t2, 5, 1)};
+
+  {type.apply_difference(t1, t2)};
+  TEST_EQUAL( {type.get(t1, 1)}, 1 );
+  TEST_EQUAL( {type.get(t1, 3)}, 0 );
+  TEST_EQUAL( {type.get(t1, 5)}, 0 );
+  TEST_EQUAL( {type.count(t1)}, 1 );
+
+  {type.destroy(t1)};
+  {type.destroy(t2)};
+""")
+
+x.unit(f"{type.apply_symmetric_difference}(): bitwise symmetric difference", f"""
+  {t1.definition};
+  {t2.definition};
+  {type.create(t1)};
+  {type.create(t2)};
+
+  {type.resize(t1, 10)};
+  {type.resize(t2, 10)};
+  {type.set(t1, 1, 1)};
+  {type.set(t1, 3, 1)};
+  {type.set(t2, 3, 1)};
+  {type.set(t2, 5, 1)};
+
+  {type.apply_symmetric_difference(t1, t2)};
+  TEST_EQUAL( {type.get(t1, 1)}, 1 );
+  TEST_EQUAL( {type.get(t1, 3)}, 0 );
+  TEST_EQUAL( {type.get(t1, 5)}, 1 );
+  TEST_EQUAL( {type.count(t1)}, 2 );
+
+  {type.destroy(t1)};
+  {type.destroy(t2)};
+""")
+
+x.unit(f"{type.create_union}(): constructing union from immutable sources", f"""
+  {t1.definition};
+  {t2.definition};
+  {t3.definition};
+  {type.create(t1)};
+  {type.create(t2)};
+
+  {type.resize(t1, 8)};
+  {type.resize(t2, 16)};
+  {type.set(t1, 1, 1)};
+  {type.set(t1, 3, 1)};
+  {type.set(t2, 3, 1)};
+  {type.set(t2, 10, 1)};
+
+  {type.create_union(t3, t1, t2)};
+  TEST_EQUAL( {type.size(t3)}, 16 );
+  TEST_EQUAL( {type.get(t3, 1)}, 1 );
+  TEST_EQUAL( {type.get(t3, 3)}, 1 );
+  TEST_EQUAL( {type.get(t3, 10)}, 1 );
+  TEST_EQUAL( {type.count(t3)}, 3 );
+
+  /* Inputs unmodified */
+  TEST_EQUAL( {type.size(t1)}, 8 );
+  TEST_EQUAL( {type.count(t1)}, 2 );
+  TEST_EQUAL( {type.size(t2)}, 16 );
+  TEST_EQUAL( {type.count(t2)}, 2 );
+
+  {type.destroy(t3)};
+  {type.destroy(t1)};
+  {type.destroy(t2)};
+""")
+
+x.unit(f"{type.create_intersection}(): constructing intersection from immutable sources", f"""
+  {t1.definition};
+  {t2.definition};
+  {t3.definition};
+  {type.create(t1)};
+  {type.create(t2)};
+
+  {type.resize(t1, 8)};
+  {type.resize(t2, 16)};
+  {type.set(t1, 1, 1)};
+  {type.set(t1, 3, 1)};
+  {type.set(t2, 3, 1)};
+  {type.set(t2, 10, 1)};
+
+  {type.create_intersection(t3, t1, t2)};
+  TEST_EQUAL( {type.size(t3)}, 8 );
+  TEST_EQUAL( {type.get(t3, 1)}, 0 );
+  TEST_EQUAL( {type.get(t3, 3)}, 1 );
+  TEST_EQUAL( {type.count(t3)}, 1 );
+
+  /* Inputs unmodified */
+  TEST_EQUAL( {type.size(t1)}, 8 );
+  TEST_EQUAL( {type.size(t2)}, 16 );
+
+  {type.destroy(t3)};
+  {type.destroy(t1)};
+  {type.destroy(t2)};
+""")
+
+x.unit(f"{type.create_difference}(): constructing difference from immutable sources", f"""
+  {t1.definition};
+  {t2.definition};
+  {t3.definition};
+  {type.create(t1)};
+  {type.create(t2)};
+
+  {type.resize(t1, 12)};
+  {type.resize(t2, 8)};
+  {type.set(t1, 1, 1)};
+  {type.set(t1, 3, 1)};
+  {type.set(t1, 10, 1)};
+  {type.set(t2, 3, 1)};
+
+  {type.create_difference(t3, t1, t2)};
+  TEST_EQUAL( {type.size(t3)}, 12 );
+  TEST_EQUAL( {type.get(t3, 1)}, 1 );
+  TEST_EQUAL( {type.get(t3, 3)}, 0 );
+  TEST_EQUAL( {type.get(t3, 10)}, 1 );
+  TEST_EQUAL( {type.count(t3)}, 2 );
+
+  /* Inputs unmodified */
+  TEST_EQUAL( {type.size(t1)}, 12 );
+  TEST_EQUAL( {type.size(t2)}, 8 );
+
+  {type.destroy(t3)};
+  {type.destroy(t1)};
+  {type.destroy(t2)};
+""")
+
+x.unit(f"{type.create_symmetric_difference}(): constructing symmetric difference from immutable sources", f"""
+  {t1.definition};
+  {t2.definition};
+  {t3.definition};
+  {type.create(t1)};
+  {type.create(t2)};
+
+  {type.resize(t1, 8)};
+  {type.resize(t2, 16)};
+  {type.set(t1, 1, 1)};
+  {type.set(t1, 3, 1)};
+  {type.set(t2, 3, 1)};
+  {type.set(t2, 10, 1)};
+
+  {type.create_symmetric_difference(t3, t1, t2)};
+  TEST_EQUAL( {type.size(t3)}, 16 );
+  TEST_EQUAL( {type.get(t3, 1)}, 1 );
+  TEST_EQUAL( {type.get(t3, 3)}, 0 );
+  TEST_EQUAL( {type.get(t3, 10)}, 1 );
+  TEST_EQUAL( {type.count(t3)}, 2 );
+
+  /* Inputs unmodified */
+  TEST_EQUAL( {type.size(t1)}, 8 );
+  TEST_EQUAL( {type.size(t2)}, 16 );
+
+  {type.destroy(t3)};
   {type.destroy(t1)};
   {type.destroy(t2)};
 """)

@@ -1,4 +1,4 @@
-from autoc.core import inout, enforced, Comparable, Coerce
+from autoc.core import inout, out, enforced, Comparable, Coerce
 from autoc.traversable import Traversable
 from autoc.insertable import Insertable
 
@@ -60,7 +60,7 @@ class Set(Traversable, Insertable):
     algebra_constraint = lambda: self.algebraic_operations and self.element.copyable and self.element.comparable
     subset_constraint = lambda: self.algebraic_operations and self.element.comparable
 
-    with self.method("int", "union", {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Add all elements from other set",
+    with self.method("int", ("apply", "union"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Add all elements from other set",
       description="""
         Adds every element of the other set which the target does not hold yet by walking
         the other set's range and putting its elements. The other set is not modified.
@@ -83,7 +83,7 @@ class Set(Traversable, Insertable):
         return added;
       """
 
-    with self.method("int", "difference", {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Remove all elements found in other set",
+    with self.method("int", ("apply", "difference"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Remove all elements found in other set",
       description="""
         Removes every element of the target which the other set holds by walking the other
         set's range and removing its elements. The other set is not modified.
@@ -111,7 +111,7 @@ class Set(Traversable, Insertable):
         return removed;
       """
 
-    with self.method("int", "intersection", {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Keep only elements also present in other set",
+    with self.method("int", ("apply", "intersection"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Keep only elements also present in other set",
       description="""
         Removes every element of the target which the other set does not hold. The other set
         is traversed via a temporary copy of the target so the removals do not disturb the walk.
@@ -139,7 +139,7 @@ class Set(Traversable, Insertable):
         return removed;
       """
 
-    with self.method("int", ("symmetric", "difference"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Remove elements in both sets, add elements in only one",
+    with self.method("int", ("apply", "symmetric", "difference"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Remove elements in both sets, add elements in only one",
       description="""
         Removes the elements the two sets share and adds the elements only the other set
         holds, making the target hold the elements present in exactly one of the sets.
@@ -166,6 +166,131 @@ class Set(Traversable, Insertable):
           else changed += {self.put(m.target, range.front_view(r))};
         }}
         return changed;
+      """
+
+    # --- Constructing algebraic operations on immutable sources ---
+
+    with self.method(None, ("create", "union"), {"target": out(self), "left": self, "right": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Construct union of two sets",
+      description="""
+        Constructs the target set as the union of left and right, holding every element
+        present in either left or right. The inputs are not modified.
+
+        @param[out] target the uninitialized storage to construct
+        @param[in] left the first set
+        @param[in] right the second set
+      """) as m:
+      m.code = lambda m: f"""
+        {r.definition};
+        assert(target);
+        assert({m.left});
+        assert({m.right});
+        if({m.left} == {m.right}) {{
+          {self.copy(m.target, m.left)};
+          return;
+        }}
+        if({self.size(m.left)} >= {self.size(m.right)}) {{
+          {self.copy(m.target, m.left)};
+          for({r} = {range.new(m.right)}; !{range.empty(r)}; {range.move_front(r)}) {{
+            {self.put(m.target, range.front_view(r))};
+          }}
+        }} else {{
+          {self.copy(m.target, m.right)};
+          for({r} = {range.new(m.left)}; !{range.empty(r)}; {range.move_front(r)}) {{
+            {self.put(m.target, range.front_view(r))};
+          }}
+        }}
+      """
+
+    with self.method(None, ("create", "intersection"), {"target": out(self), "left": self, "right": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Construct intersection of two sets",
+      description="""
+        Constructs the target set as the intersection of left and right, holding every element
+        present in both left and right. The inputs are not modified.
+
+        @param[out] target the uninitialized storage to construct
+        @param[in] left the first set
+        @param[in] right the second set
+      """) as m:
+      m.code = lambda m: f"""
+        {r.definition};
+        assert(target);
+        assert({m.left});
+        assert({m.right});
+        if({m.left} == {m.right}) {{
+          {self.copy(m.target, m.left)};
+          return;
+        }}
+        {self.create(m.target)};
+        if({self.size(m.left)} <= {self.size(m.right)}) {{
+          for({r} = {range.new(m.left)}; !{range.empty(r)}; {range.move_front(r)}) {{
+            if({self.contains(m.right, range.front_view(r))}) {{
+              {self.put(m.target, range.front_view(r))};
+            }}
+          }}
+        }} else {{
+          for({r} = {range.new(m.right)}; !{range.empty(r)}; {range.move_front(r)}) {{
+            if({self.contains(m.left, range.front_view(r))}) {{
+              {self.put(m.target, range.front_view(r))};
+            }}
+          }}
+        }}
+      """
+
+    with self.method(None, ("create", "difference"), {"target": out(self), "left": self, "right": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Construct difference of two sets",
+      description="""
+        Constructs the target set as the difference of left and right (left \\ right), holding
+        every element present in left but not in right. The inputs are not modified.
+
+        @param[out] target the uninitialized storage to construct
+        @param[in] left the set of elements to keep
+        @param[in] right the set of elements to exclude
+      """) as m:
+      m.code = lambda m: f"""
+        {r.definition};
+        assert(target);
+        assert({m.left});
+        assert({m.right});
+        if({m.left} == {m.right}) {{
+          {self.create(m.target)};
+          return;
+        }}
+        if({self.size(m.right)} == 0) {{
+          {self.copy(m.target, m.left)};
+          return;
+        }}
+        {self.create(m.target)};
+        for({r} = {range.new(m.left)}; !{range.empty(r)}; {range.move_front(r)}) {{
+          if(!{self.contains(m.right, range.front_view(r))}) {{
+            {self.put(m.target, range.front_view(r))};
+          }}
+        }}
+      """
+
+    with self.method(None, ("create", "symmetric", "difference"), {"target": out(self), "left": self, "right": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Construct symmetric difference of two sets",
+      description="""
+        Constructs the target set as the symmetric difference of left and right, holding
+        elements present in exactly one of the sets. The inputs are not modified.
+
+        @param[out] target the uninitialized storage to construct
+        @param[in] left the first set
+        @param[in] right the second set
+      """) as m:
+      m.code = lambda m: f"""
+        {r.definition};
+        assert(target);
+        assert({m.left});
+        assert({m.right});
+        {self.create(m.target)};
+        if({m.left} == {m.right}) return;
+        for({r} = {range.new(m.left)}; !{range.empty(r)}; {range.move_front(r)}) {{
+          if(!{self.contains(m.right, range.front_view(r))}) {{
+            {self.put(m.target, range.front_view(r))};
+          }}
+        }}
+        for({r} = {range.new(m.right)}; !{range.empty(r)}; {range.move_front(r)}) {{
+          if(!{self.contains(m.left, range.front_view(r))}) {{
+            {self.put(m.target, range.front_view(r))};
+          }}
+        }}
       """
 
     with self.method("int", ("is", "subset"), {"target": self, "other": self}, constraint=subset_constraint, optional_group="algebraic_operations", brief="Check if all elements are in other set",
