@@ -21,11 +21,11 @@ stdlib_h = Code(interface="""
   #ifndef __STDC_WANT_LIB_EXT1__
     #define __STDC_WANT_LIB_EXT1__ 1
   #endif
-  #if defined(_MSC_VER) && !defined(_CRT_RAND_S)
+  #if defined(AUTOC_MSVC) && !defined(_CRT_RAND_S)
     #define _CRT_RAND_S
   #endif
   #include <stdlib.h>
-""")
+""", dependencies=(autoc.core._linkage_code,))
 
 
 def _primitive(name, matcher=None, cls=autoc.core.Primitive, **kwargs):
