@@ -166,7 +166,7 @@ x.unit(f"{type.range}(): traverse elements and counts in order", f"""
   TEST_EQUAL( step, 3 );
 """)
 
-x.unit(f"{type.assign_union}(): multiset union (max counts)", f"""
+x.unit(f"{type.apply_union}(): multiset union (max counts)", f"""
   {t1.definition};
   {type.create(t1)};
 
@@ -177,7 +177,7 @@ x.unit(f"{type.assign_union}(): multiset union (max counts)", f"""
   {type.add(t1, 20, 6)};
   {type.add(t1, 30, 4)};
 
-  {type.assign_union(t, t1)};
+  {type.apply_union(t, t1)};
   /* max(5, 3) = 5 for 10; max(2, 6) = 6 for 20; max(0, 4) = 4 for 30 */
   TEST_EQUAL( {type.count(t, 10)}, 5 );
   TEST_EQUAL( {type.count(t, 20)}, 6 );
@@ -188,7 +188,7 @@ x.unit(f"{type.assign_union}(): multiset union (max counts)", f"""
   {type.destroy(t1)};
 """)
 
-x.unit(f"{type.assign_intersection}(): multiset intersection (min counts)", f"""
+x.unit(f"{type.apply_intersection}(): multiset intersection (min counts)", f"""
   {t1.definition};
   {type.create(t1)};
 
@@ -200,7 +200,7 @@ x.unit(f"{type.assign_intersection}(): multiset intersection (min counts)", f"""
   {type.add(t1, 20, 6)};
   {type.add(t1, 30, 4)};
 
-  {type.assign_intersection(t, t1)};
+  {type.apply_intersection(t, t1)};
   /* min(5, 3) = 3 for 10; min(2, 6) = 2 for 20; absent for 40 and 30 */
   TEST_EQUAL( {type.count(t, 10)}, 3 );
   TEST_EQUAL( {type.count(t, 20)}, 2 );
@@ -212,7 +212,7 @@ x.unit(f"{type.assign_intersection}(): multiset intersection (min counts)", f"""
   {type.destroy(t1)};
 """)
 
-x.unit(f"{type.assign_difference}(): multiset difference", f"""
+x.unit(f"{type.apply_difference}(): multiset difference", f"""
   {t1.definition};
   {type.create(t1)};
 
@@ -222,7 +222,7 @@ x.unit(f"{type.assign_difference}(): multiset difference", f"""
   {type.add(t1, 10, 2)};
   {type.add(t1, 20, 5)};
 
-  {type.assign_difference(t, t1)};
+  {type.apply_difference(t, t1)};
   /* 5 - 2 = 3 for 10; max(0, 2 - 5) = 0 for 20 */
   TEST_EQUAL( {type.count(t, 10)}, 3 );
   TEST_EQUAL( {type.count(t, 20)}, 0 );
@@ -230,6 +230,91 @@ x.unit(f"{type.assign_difference}(): multiset difference", f"""
   TEST_EQUAL( {type.size(t)}, 3 );
   TEST_EQUAL( {type.distinct_size(t)}, 1 );
 
+  {type.destroy(t1)};
+""")
+
+x.unit(f"{type.create_union}(): constructing union from immutable sources", f"""
+  {t1.definition};
+  {t2.definition};
+  {type.create(t1)};
+
+  {type.add(t, 10, 5)};
+  {type.add(t, 20, 2)};
+
+  {type.add(t1, 10, 3)};
+  {type.add(t1, 20, 6)};
+  {type.add(t1, 30, 4)};
+
+  {type.create_union(t2, t, t1)};
+
+  TEST_EQUAL( {type.count(t2, 10)}, 5 );
+  TEST_EQUAL( {type.count(t2, 20)}, 6 );
+  TEST_EQUAL( {type.count(t2, 30)}, 4 );
+  TEST_EQUAL( {type.size(t2)}, 15 );
+  TEST_EQUAL( {type.distinct_size(t2)}, 3 );
+
+  /* Ensure inputs are unmodified */
+  TEST_EQUAL( {type.size(t)}, 7 );
+  TEST_EQUAL( {type.size(t1)}, 13 );
+
+  {type.destroy(t2)};
+  {type.destroy(t1)};
+""")
+
+x.unit(f"{type.create_intersection}(): constructing intersection from immutable sources", f"""
+  {t1.definition};
+  {t2.definition};
+  {type.create(t1)};
+
+  {type.add(t, 10, 5)};
+  {type.add(t, 20, 2)};
+  {type.add(t, 40, 1)};
+
+  {type.add(t1, 10, 3)};
+  {type.add(t1, 20, 6)};
+  {type.add(t1, 30, 4)};
+
+  {type.create_intersection(t2, t, t1)};
+
+  TEST_EQUAL( {type.count(t2, 10)}, 3 );
+  TEST_EQUAL( {type.count(t2, 20)}, 2 );
+  TEST_EQUAL( {type.count(t2, 30)}, 0 );
+  TEST_EQUAL( {type.count(t2, 40)}, 0 );
+  TEST_EQUAL( {type.size(t2)}, 5 );
+  TEST_EQUAL( {type.distinct_size(t2)}, 2 );
+
+  /* Ensure inputs are unmodified */
+  TEST_EQUAL( {type.size(t)}, 8 );
+  TEST_EQUAL( {type.size(t1)}, 13 );
+
+  {type.destroy(t2)};
+  {type.destroy(t1)};
+""")
+
+x.unit(f"{type.create_difference}(): constructing difference from immutable sources", f"""
+  {t1.definition};
+  {t2.definition};
+  {type.create(t1)};
+
+  {type.add(t, 10, 5)};
+  {type.add(t, 20, 2)};
+
+  {type.add(t1, 10, 2)};
+  {type.add(t1, 20, 5)};
+
+  {type.create_difference(t2, t, t1)};
+
+  TEST_EQUAL( {type.count(t2, 10)}, 3 );
+  TEST_EQUAL( {type.count(t2, 20)}, 0 );
+  TEST_FALSE( {type.contains(t2, 20)} );
+  TEST_EQUAL( {type.size(t2)}, 3 );
+  TEST_EQUAL( {type.distinct_size(t2)}, 1 );
+
+  /* Ensure inputs are unmodified */
+  TEST_EQUAL( {type.size(t)}, 7 );
+  TEST_EQUAL( {type.size(t1)}, 7 );
+
+  {type.destroy(t2)};
   {type.destroy(t1)};
 """)
 
