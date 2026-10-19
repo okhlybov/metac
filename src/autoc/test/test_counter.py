@@ -291,6 +291,33 @@ x.unit(f"{type.create_intersection}(): constructing intersection from immutable 
   {type.destroy(t1)};
 """)
 
+x.unit(f"{type.create_symmetric_difference}(): constructing symmetric difference from immutable sources", f"""
+  {t1.definition};
+  {t2.definition};
+  {type.create(t1)};
+
+  {type.add(t, 10, 5)};
+  {type.add(t, 20, 2)};
+
+  {type.add(t1, 10, 2)};
+  {type.add(t1, 20, 5)};
+
+  {type.create_symmetric_difference(t2, t, t1)};
+
+  TEST_EQUAL( {type.count(t2, 10)}, 3 );
+  TEST_EQUAL( {type.count(t2, 20)}, 3 );
+  TEST_EQUAL( {type.size(t2)}, 6 );
+  TEST_EQUAL( {type.distinct_size(t2)}, 2 );
+
+  /* Ensure inputs are unmodified */
+  TEST_EQUAL( {type.size(t)}, 7 );
+  TEST_EQUAL( {type.size(t1)}, 7 );
+
+  {type.destroy(t2)};
+  {type.destroy(t1)};
+""")
+
+
 x.unit(f"{type.create_difference}(): constructing difference from immutable sources", f"""
   {t1.definition};
   {t2.definition};

@@ -354,51 +354,11 @@ def emit_sequence(ctx):
 # Set concept - membership semantics, traversal multiplicity, algebra
 # --------------------------------------------------------------------------- #
 
-def emit_set(ctx):
-  x, T, ek = ctx.x, ctx.T, ctx.ek
-  a0, a1, a2 = ctx.earg(0), ctx.earg(1), ctx.earg(2)
-
-  if active(T, "emplace") and getattr(ek.type, "constructor_parameters", None):
-    ctor_args = [str(7) for _ in ek.type.constructor_parameters]
-    emplaced = ctx.call("emplace", ctx.t, *ctor_args)
-    body = [f"TEST_TRUE({emplaced});",
-            f"TEST_FALSE({emplaced});"]
-    ctx.unit("emplace(): construct in place and reject duplicate", "\n".join(body))
-
-  # Traversal multiplicity: every held element visited exactly once
-  if ctx.fill_attr and getattr(T, "range", None) is not None:
-    r = T.range.variable("r")
-    walk = f"for({r} = {T.range.new(ctx.t)}; !{T.range.empty(r)}; {T.range.move_front(r)})"
-    count_body = [ctx.fill(0), ctx.fill(1), ctx.fill(2),
-                  "size_t n = 0;",
-                  f"{r.definition}; {walk} {{ ++n; }}",
-                  f"TEST_EQUAL(n, 3);"]
-    ctx.unit("range(): traverse all elements exactly once", "\n".join(count_body), nlocs=3)
-
-    if ek.numeric:
-      mask_body = [ctx.fill(0), ctx.fill(1), ctx.fill(2),
-                   "unsigned mask = 0;",
-                   f"{r.definition}; {walk} {{ mask |= 1u << {T.range.front(r)}; }}",
-                   "TEST_EQUAL(mask, 0x7);"]
-      ctx.unit("range(): visit each distinct element", "\n".join(mask_body), nlocs=3)
-
-    if ek.numeric and T.orderable:
-      sorted_body = [ctx.fill(0), ctx.fill(2), ctx.fill(1),
-                     "int prev = -1; size_t n = 0;",
-                     f"{r.definition}; {walk} {{ int v = {T.range.front(r)}; TEST_TRUE(prev < v); prev = v; ++n; }}",
-                     "TEST_EQUAL(n, 3);"]
-      ctx.unit("range(): ordered traversal", "\n".join(sorted_body), nlocs=3)
-
-  # Churn: repeated scatter/gather must not lose or duplicate elements
-  if ek.numeric and active(T, "put") and active(T, "remove") and active(T, "contains"):
-    i = "i"
-    churn = [f"for(size_t {i} = 0; {i} < 100; ++{i}) {ctx.call('put', ctx.t, f'({i}*37) % 100')};",
-             f"TEST_EQUAL({ctx.call('size', ctx.t)}, 100);",
-             f"for(size_t {i} = 0; {i} < 100; ++{i}) TEST_TRUE({ctx.call('contains', ctx.t, f'({i}*37) % 100')});",
-             f"for(size_t {i} = 0; {i} < 100; ++{i}) TEST_TRUE({ctx.call('remove', ctx.t, f'({i}*37) % 100')});",
-             f"TEST_TRUE({ctx.call('empty', ctx.t)});"]
-    ctx.unit("put()/remove(): churn without loss", "\n".join(churn))
-
+# Shared algebra emission for the set and multiset concepts - with
+# single-occurrence fills the multiset multiplicities coincide with the set
+# expectations so both concepts are covered by the same units
+def _emit_algebra(ctx, a0, a1, a2):
+  T = ctx.T
   # Algebraic operations - each unit starts from freshly filled operands and
   # only runs when the particular operation is active for this instantiation
   other = T.variable("other")
@@ -485,6 +445,82 @@ def emit_set(ctx):
             f"TEST_FALSE({T.is_subset(ctx.t, other)});",
             [f"TEST_FALSE({T.is_superset(other, ctx.t)});"])
 
+  # The self-alias branches - both sources being the same container exercise the
+  # copy-shortcut (union/intersection) and empty-result (differences) fast paths
+  if active(T, "create_union") or active(T, "create_intersection"):
+    copies = [("create_union", T.create_union), ("create_intersection", T.create_intersection)]
+    for name, op in copies:
+      if active(T, name):
+        lines = [f"{result_set.definition};"]
+        lines += [ctx.fill(i) for i in (0, 1)]
+        lines.append(f"{op(result_set, ctx.t, ctx.t)};")
+        lines.append(f"TEST_EQUAL({ctx.call('size', result_set)}, 2);")
+        lines.append(f"TEST_TRUE({ctx.call('contains', result_set, a0)});")
+        lines.append(f"TEST_TRUE({ctx.call('contains', result_set, a1)});")
+        lines.append(f"TEST_EQUAL({ctx.call('size', ctx.t)}, 2);")
+        lines.append(f"{T.destroy(result_set)};")
+        ctx.unit(f"{name}(): aliased sources replicate the contents", "\n".join(lines), nlocs=2)
+  for name in ("create_difference", "create_symmetric_difference"):
+    if active(T, name):
+      op = getattr(T, name)
+      lines = [f"{result_set.definition};"]
+      lines += [ctx.fill(i) for i in (0, 1)]
+      lines.append(f"{op(result_set, ctx.t, ctx.t)};")
+      lines.append(f"TEST_TRUE({ctx.call('empty', result_set)});")
+      lines.append(f"TEST_EQUAL({ctx.call('size', ctx.t)}, 2);")
+      lines.append(f"{T.destroy(result_set)};")
+      ctx.unit(f"{name}(): aliased sources yield the empty result", "\n".join(lines), nlocs=2)
+
+
+# --------------------------------------------------------------------------- #
+
+def emit_set(ctx):
+  x, T, ek = ctx.x, ctx.T, ctx.ek
+  a0, a1, a2 = ctx.earg(0), ctx.earg(1), ctx.earg(2)
+
+  if active(T, "emplace") and getattr(ek.type, "constructor_parameters", None):
+    ctor_args = [str(7) for _ in ek.type.constructor_parameters]
+    emplaced = ctx.call("emplace", ctx.t, *ctor_args)
+    body = [f"TEST_TRUE({emplaced});",
+            f"TEST_FALSE({emplaced});"]
+    ctx.unit("emplace(): construct in place and reject duplicate", "\n".join(body))
+
+  # Traversal multiplicity: every held element visited exactly once
+  if ctx.fill_attr and getattr(T, "range", None) is not None:
+    r = T.range.variable("r")
+    walk = f"for({r} = {T.range.new(ctx.t)}; !{T.range.empty(r)}; {T.range.move_front(r)})"
+    count_body = [ctx.fill(0), ctx.fill(1), ctx.fill(2),
+                  "size_t n = 0;",
+                  f"{r.definition}; {walk} {{ ++n; }}",
+                  f"TEST_EQUAL(n, 3);"]
+    ctx.unit("range(): traverse all elements exactly once", "\n".join(count_body), nlocs=3)
+
+    if ek.numeric:
+      mask_body = [ctx.fill(0), ctx.fill(1), ctx.fill(2),
+                   "unsigned mask = 0;",
+                   f"{r.definition}; {walk} {{ mask |= 1u << {T.range.front(r)}; }}",
+                   "TEST_EQUAL(mask, 0x7);"]
+      ctx.unit("range(): visit each distinct element", "\n".join(mask_body), nlocs=3)
+
+    if ek.numeric and T.orderable:
+      sorted_body = [ctx.fill(0), ctx.fill(2), ctx.fill(1),
+                     "int prev = -1; size_t n = 0;",
+                     f"{r.definition}; {walk} {{ int v = {T.range.front(r)}; TEST_TRUE(prev < v); prev = v; ++n; }}",
+                     "TEST_EQUAL(n, 3);"]
+      ctx.unit("range(): ordered traversal", "\n".join(sorted_body), nlocs=3)
+
+  # Churn: repeated scatter/gather must not lose or duplicate elements
+  if ek.numeric and active(T, "put") and active(T, "remove") and active(T, "contains"):
+    i = "i"
+    churn = [f"for(size_t {i} = 0; {i} < 100; ++{i}) {ctx.call('put', ctx.t, f'({i}*37) % 100')};",
+             f"TEST_EQUAL({ctx.call('size', ctx.t)}, 100);",
+             f"for(size_t {i} = 0; {i} < 100; ++{i}) TEST_TRUE({ctx.call('contains', ctx.t, f'({i}*37) % 100')});",
+             f"for(size_t {i} = 0; {i} < 100; ++{i}) TEST_TRUE({ctx.call('remove', ctx.t, f'({i}*37) % 100')});",
+             f"TEST_TRUE({ctx.call('empty', ctx.t)});"]
+    ctx.unit("put()/remove(): churn without loss", "\n".join(churn))
+
+  _emit_algebra(ctx, a0, a1, a2)
+
 
 # --------------------------------------------------------------------------- #
 # Mapping concept - key/value semantics
@@ -551,7 +587,7 @@ def emit_mapping(ctx):
 
 def emit_multiset(ctx):
   x, T, ek = ctx.x, ctx.T, ctx.ek
-  a0 = ctx.earg(0)
+  a0, a1, a2 = ctx.earg(0), ctx.earg(1), ctx.earg(2)
 
   if active(T, "put") and active(T, "count"):
     ctx.unit("put()/count(): multiplicity grows",
@@ -604,6 +640,8 @@ def emit_multiset(ctx):
                          f"TEST_EQUAL({ctx.call('distinct_size', ctx.t)}, 1);",
                          f"TEST_EQUAL({T.subtract(ctx.t, a0, '1')}, 1);",
                          f"TEST_EQUAL({ctx.call('count', ctx.t, a0)}, 2);"]), nlocs=1)
+
+  _emit_algebra(ctx, a0, a1, a2)
 
 
 # --------------------------------------------------------------------------- #

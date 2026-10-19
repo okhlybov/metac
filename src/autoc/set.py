@@ -180,14 +180,15 @@ class Set(Traversable, Insertable):
         @param[in] right the second set
       """) as m:
       m.code = lambda m: f"""
-        {r.definition};
         assert(target);
         assert({m.left});
         assert({m.right});
+        assert(target != {m.left} && target != {m.right}); /* the target must be fresh storage */
         if({m.left} == {m.right}) {{
           {self.copy(m.target, m.left)};
           return;
         }}
+        {r.definition};
         if({self.size(m.left)} >= {self.size(m.right)}) {{
           {self.copy(m.target, m.left)};
           for({r} = {range.new(m.right)}; !{range.empty(r)}; {range.move_front(r)}) {{
@@ -211,14 +212,15 @@ class Set(Traversable, Insertable):
         @param[in] right the second set
       """) as m:
       m.code = lambda m: f"""
-        {r.definition};
         assert(target);
         assert({m.left});
         assert({m.right});
+        assert(target != {m.left} && target != {m.right}); /* the target must be fresh storage */
         if({m.left} == {m.right}) {{
           {self.copy(m.target, m.left)};
           return;
         }}
+        {r.definition};
         {self.create(m.target)};
         if({self.size(m.left)} <= {self.size(m.right)}) {{
           for({r} = {range.new(m.left)}; !{range.empty(r)}; {range.move_front(r)}) {{
@@ -245,10 +247,10 @@ class Set(Traversable, Insertable):
         @param[in] right the set of elements to exclude
       """) as m:
       m.code = lambda m: f"""
-        {r.definition};
         assert(target);
         assert({m.left});
         assert({m.right});
+        assert(target != {m.left} && target != {m.right}); /* the target must be fresh storage */
         if({m.left} == {m.right}) {{
           {self.create(m.target)};
           return;
@@ -257,6 +259,7 @@ class Set(Traversable, Insertable):
           {self.copy(m.target, m.left)};
           return;
         }}
+        {r.definition};
         {self.create(m.target)};
         for({r} = {range.new(m.left)}; !{range.empty(r)}; {range.move_front(r)}) {{
           if(!{self.contains(m.right, range.front_view(r))}) {{
@@ -275,12 +278,16 @@ class Set(Traversable, Insertable):
         @param[in] right the second set
       """) as m:
       m.code = lambda m: f"""
-        {r.definition};
         assert(target);
         assert({m.left});
         assert({m.right});
+        assert(target != {m.left} && target != {m.right}); /* the target must be fresh storage */
+        if({m.left} == {m.right}) {{
+          {self.create(m.target)};
+          return;
+        }}
+        {r.definition};
         {self.create(m.target)};
-        if({m.left} == {m.right}) return;
         for({r} = {range.new(m.left)}; !{range.empty(r)}; {range.move_front(r)}) {{
           if(!{self.contains(m.right, range.front_view(r))}) {{
             {self.put(m.target, range.front_view(r))};

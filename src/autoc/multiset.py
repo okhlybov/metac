@@ -213,14 +213,15 @@ class Multiset(Traversable, Insertable):
         @param[in] right the second multiset
       """) as m:
       m.code = lambda m: f"""
-        {r.definition};
         assert(target);
         assert({m.left});
         assert({m.right});
+        assert(target != {m.left} && target != {m.right}); /* the target must be fresh storage */
         if({m.left} == {m.right}) {{
           {self.copy(m.target, m.left)};
           return;
         }}
+        {r.definition};
         if({self.size(m.left)} >= {self.size(m.right)}) {{
           {self.copy(m.target, m.left)};
           for({r} = {range.new(m.right)}; !{range.empty(r)}; {range.move_front(r)}) {{
@@ -248,14 +249,15 @@ class Multiset(Traversable, Insertable):
         @param[in] right the second multiset
       """) as m:
       m.code = lambda m: f"""
-        {r.definition};
         assert(target);
         assert({m.left});
         assert({m.right});
+        assert(target != {m.left} && target != {m.right}); /* the target must be fresh storage */
         if({m.left} == {m.right}) {{
           {self.copy(m.target, m.left)};
           return;
         }}
+        {r.definition};
         {self.create(m.target)};
         if({self.size(m.left)} <= {self.size(m.right)}) {{
           for({r} = {range.new(m.left)}; !{range.empty(r)}; {range.move_front(r)}) {{
@@ -282,10 +284,10 @@ class Multiset(Traversable, Insertable):
         @param[in] right the multiset whose multiplicities are subtracted
       """) as m:
       m.code = lambda m: f"""
-        {r.definition};
         assert(target);
         assert({m.left});
         assert({m.right});
+        assert(target != {m.left} && target != {m.right}); /* the target must be fresh storage */
         if({m.left} == {m.right}) {{
           {self.create(m.target)};
           return;
@@ -294,6 +296,7 @@ class Multiset(Traversable, Insertable):
           {self.copy(m.target, m.left)};
           return;
         }}
+        {r.definition};
         {self.create(m.target)};
         for({r} = {range.new(m.left)}; !{range.empty(r)}; {range.move_front(r)}) {{
           size_t c_l = {self.count(m.left, range.front_view(r))};
@@ -314,12 +317,16 @@ class Multiset(Traversable, Insertable):
         @param[in] right the second multiset
       """) as m:
       m.code = lambda m: f"""
-        {r.definition};
         assert(target);
         assert({m.left});
         assert({m.right});
+        assert(target != {m.left} && target != {m.right}); /* the target must be fresh storage */
+        if({m.left} == {m.right}) {{
+          {self.create(m.target)};
+          return;
+        }}
+        {r.definition};
         {self.create(m.target)};
-        if({m.left} == {m.right}) return;
         for({r} = {range.new(m.left)}; !{range.empty(r)}; {range.move_front(r)}) {{
           size_t c_l = {self.count(m.left, range.front_view(r))};
           size_t c_r = {self.count(m.right, range.front_view(r))};

@@ -469,14 +469,15 @@ class Counter(_StructRenderer, Multiset):
 
     with self.create_union as m:
       m.code = lambda m: f"""
-        {r.definition};
         assert(target);
         assert({m.left});
         assert({m.right});
+        assert(target != {m.left} && target != {m.right}); /* the target must be fresh storage */
         if({m.left} == {m.right}) {{
           {self.copy(m.target, m.left)};
           return;
         }}
+        {r.definition};
         if({m.left}->total_size >= {m.right}->total_size) {{
           {self.copy(m.target, m.left)};
           for({r} = {self.range.new(m.right)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
@@ -502,14 +503,15 @@ class Counter(_StructRenderer, Multiset):
 
     with self.create_intersection as m:
       m.code = lambda m: f"""
-        {r.definition};
         assert(target);
         assert({m.left});
         assert({m.right});
+        assert(target != {m.left} && target != {m.right}); /* the target must be fresh storage */
         if({m.left} == {m.right}) {{
           {self.copy(m.target, m.left)};
           return;
         }}
+        {r.definition};
         {self.create(m.target)};
         if({self.distinct_size(m.left)} <= {self.distinct_size(m.right)}) {{
           for({r} = {self.range.new(m.left)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
@@ -534,10 +536,10 @@ class Counter(_StructRenderer, Multiset):
 
     with self.create_difference as m:
       m.code = lambda m: f"""
-        {r.definition};
         assert(target);
         assert({m.left});
         assert({m.right});
+        assert(target != {m.left} && target != {m.right}); /* the target must be fresh storage */
         if({m.left} == {m.right}) {{
           {self.create(m.target)};
           return;
@@ -546,6 +548,7 @@ class Counter(_StructRenderer, Multiset):
           {self.copy(m.target, m.left)};
           return;
         }}
+        {r.definition};
         {self.create(m.target)};
         for({r} = {self.range.new(m.left)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
           {elem.definition} = {self.range.front(r)};
@@ -559,12 +562,16 @@ class Counter(_StructRenderer, Multiset):
 
     with self.create_symmetric_difference as m:
       m.code = lambda m: f"""
-        {r.definition};
         assert(target);
         assert({m.left});
         assert({m.right});
+        assert(target != {m.left} && target != {m.right}); /* the target must be fresh storage */
+        if({m.left} == {m.right}) {{
+          {self.create(m.target)};
+          return;
+        }}
+        {r.definition};
         {self.create(m.target)};
-        if({m.left} == {m.right}) return;
         for({r} = {self.range.new(m.left)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
           {elem.definition} = {self.range.front(r)};
           size_t l_cnt = {self.range.count(r)};
