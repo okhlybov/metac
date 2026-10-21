@@ -1,5 +1,0 @@
-option('regenerate',
-  type: 'feature',
-  value: 'auto',
-  description: 'Regenerate AutoC sources using Python (auto: only if missing or Python found)'
-)

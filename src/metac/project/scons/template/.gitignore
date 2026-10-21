@@ -1,0 +1,11 @@
+.sconsign.dblite
+.sconf_temp/
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+build/
+.metac
+@project@
+@project@.exe

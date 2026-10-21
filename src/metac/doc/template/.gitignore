@@ -1,0 +1,12 @@
+build
+__pycache__
+reference
+html
+latex
+@module@.cmake
+@module@.meson
+@module@.scons
+@module@.stamp
+@module@_auto*
+*_auto.*
+.metac
