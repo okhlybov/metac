@@ -56,7 +56,8 @@ class Set(_StructRenderer, metac.set.Set, Hashed):
         target->capacity = target->size = 0;
       """
 
-    with self.method(None, "allocate", {"target": inout(self), "capacity": std.size_t}, hidden=True, visibility="internal", brief="Allocate the hash table with the capacity rounded up to a power of two (internal)") as m:
+    with self.method(None, "allocate", {"target": inout(self), "capacity": std.size_t}, hidden=True, visibility="internal", references=(_ceil_power2,),
+      brief="Allocate the hash table with the capacity rounded up to a power of two (internal)") as m:
       m.code = f"""
         assert(target);
         assert(capacity > 0);
@@ -112,7 +113,7 @@ class Set(_StructRenderer, metac.set.Set, Hashed):
         }}
       """
 
-    with self.method(None, "resize", {"target": inout(self), "new_size": std.size_t}, hidden=True, visibility="internal", brief="Resize hash table (internal)") as m:
+    with self.method(None, "resize", {"target": inout(self), "new_size": std.size_t}, hidden=True, visibility="internal", references=(_ceil_power2,), brief="Resize hash table (internal)") as m:
       m.code = f"""
         size_t index, bucket, new_capacity;
         {self._bucket_p} buckets;

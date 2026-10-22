@@ -144,10 +144,23 @@ class Source(_EntityContainer, _SmartRenderer):
 
   def render_contents(self, stream):
     self.render_prologue(stream)
-    total_entities = set()
-    for e in self.entities:
-      total_entities.update(e.total_references)
-    for e in _sort_entities(total_entities):
+    # Collect the entities consumed by this unit's own implementations: the
+    # definitions rendered below plus the code carried by the rendered
+    # declarations themselves (inline bodies, auxiliary code blocks); a plain
+    # transitive closure over the references would also emit the forward
+    # declarations of the symbols which nothing in this unit ever consumes
+    declared = set()
+    frontier = [e for e in self.entities if e._source_definitions]
+    while frontier:
+      pending = []
+      for e in frontier:
+        for r in [*e.references]:
+          if r not in declared and r._source_declarations:
+            declared.add(r)
+            if r._source_declarations_consume:
+              pending.append(r)
+      frontier = pending
+    for e in _sort_entities(declared):
       for chunk in e._source_declarations:
         stream.write(chunk)
     for e in _sort_entities(self.entities):
@@ -250,7 +263,25 @@ class Module:
       self.__total_entities = entities
     return self.__total_entities
 
+  def _heal_references(self):
+    # The staged type construction may replace a method after its default
+    # body has been evaluated, leaving the references captured along the
+    # way addressing the replaced objects - walk the whole reachable graph
+    # and resolve every reference to its attribute-current entity
+    visited = set()
+    frontier = list(self.entities)
+    while frontier:
+      e = frontier.pop()
+      if e in visited:
+        continue
+      visited.add(e)
+      frontier.extend(e.references)
+    for e in visited:
+      e.references = {r._current() for r in e.references}
+    return self
+
   def distribute_entities(self):
+    self._heal_references()
     self.header.entities.update(self.total_entities)
     if self.source_count is None:
       if self.source_threshold is None:
@@ -426,8 +457,21 @@ class Entity:
     return self._source_declarations.complexity + self._source_definitions.complexity
 
   def render_declarations(self, stream, header): pass
-  
+
   def render_definitions(self, stream, header): pass
+
+  @property
+  def _source_declarations_consume(self):
+    # Whether the source declarations carry executable code (inline bodies,
+    # auxiliary code blocks) consuming other entities at the translation unit
+    # scope - plain forward declarations only mention the header-declared
+    # types and so consume nothing
+    return False
+
+  def _current(self):
+    return self
+
+  def _register_reference(self, entity): pass
 
   @property
   def _header_declarations(self):
@@ -481,6 +525,10 @@ class Code(Entity):
 
   def __repr__(self):
     return f"... <{self.__class__.__name__}>"
+
+  @property
+  def _source_declarations_consume(self):
+    return self.__definitions is not None
 
   def render_declarations(self, stream, header):
     if header:

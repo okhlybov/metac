@@ -23,17 +23,21 @@ def configure_module(module):
       total += len(c.codes)
     else:
       total += 1
-  code = []
-  code.append("void run_codes(void) {\n")
+  body = []
+  body.append("void run_codes(void) {\n")
   if total > 0:
-    code.append(f'  printf("1..{total}\\n");\n')
+    body.append(f'  printf("1..{total}\\n");\n')
   else:
-    code.append('  printf("1..0 # Skipped: empty test suite\\n");\n')
+    body.append('  printf("1..0 # Skipped: empty test suite\\n");\n')
   for c in sorted(codes):
     module.add(c)
-    code.append(f"  run_code({c.name});\n")
-  code.append("}")
-  module.add(metac.module.Code(definitions=str().join(code)))
+    body.append(f"  run_code({c.name});\n")
+  body.append("}")
+  driver = metac.module.Code(definitions=str().join(body))
+  # The harness implementation calling run_codes() textually cannot register
+  # the driver through the authoring context so declare the reference directly
+  code.references.add(driver)
+  module.add(driver)
 
 
 class Unit(metac.module.Code):
@@ -71,6 +75,11 @@ class Type(Unit):
     if name is None:
       name = self.type.name
     super().__init__(f"code_{name}", dependencies=[*dependencies, self.type])
+    # The test bodies are authored as plain evaluated strings outside of any
+    # authoring context so the calls they make cannot register themselves -
+    # declare the whole type interface as the references instead since the
+    # tests exercise it indiscriminately
+    self.references.update(self.type.references)
     self._setup = str()
     self._cleanup = str()
     self.codes = []

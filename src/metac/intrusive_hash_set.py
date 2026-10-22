@@ -60,7 +60,8 @@ class Set(_StructRenderer, metac.set.Set, Hashed):
         return {self.slot._engaged(elem_expr)};
       """
     
-    with self.method(None, "allocate", {"target": inout(self), "capacity": std.size_t}, hidden=True, visibility="internal", brief="Allocate the element table with the capacity rounded up to a power of two (internal)") as m:
+    with self.method(None, "allocate", {"target": inout(self), "capacity": std.size_t}, hidden=True, visibility="internal", references=(_ceil_power2,),
+      brief="Allocate the element table with the capacity rounded up to a power of two (internal)") as m:
       m.code = f"""
         assert(target);
         assert(capacity > 0);
@@ -170,7 +171,7 @@ class Set(_StructRenderer, metac.set.Set, Hashed):
         abort(); /* not finding a suitable empty slot is a fatal error */
       """
 
-    with self.method(None, "resize", {"target": inout(self), "new_size": std.size_t}, hidden=True, constraint=lambda: self.element.copyable, brief="Resize hash table (internal)") as m:
+    with self.method(None, "resize", {"target": inout(self), "new_size": std.size_t}, hidden=True, constraint=lambda: self.element.copyable, references=(_ceil_power2,), brief="Resize hash table (internal)") as m:
       m.code = f"""
         {_target.definition};
         size_t index, _index, new_capacity;

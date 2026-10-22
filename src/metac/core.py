@@ -695,6 +695,7 @@ class _Named(Type):
     attribute = self._decorate_attribute(attribute if attribute else identifier)
     self.__attributes.add(attribute) # Record attribute name which holds the method object
     setattr(self, attribute, x)
+    x._attribute = attribute
     return x
 
   #
@@ -1060,6 +1061,13 @@ def inout(obj):
   return Callable.InOut(obj)
 
 
+# The function whose implementation is currently being authored (inside its
+# `with` block) or rendered (inside its body evaluation) - the callables
+# invoked along the way register themselves as its references so that the
+# rendering can provide their declarations wherever the implementation lands
+_authoring = []
+
+
 # Basic callable descriptor
 class Callable(_Documented):
   
@@ -1142,6 +1150,10 @@ class _Parametrized(Callable, Entity):
       self.dependencies.add(self.result)
 
   def __call__(self, *arguments):
+    if _authoring:
+      f = _authoring[-1]
+      f.references.add(self)
+      f._register_reference(self)
     if not self.active:
       raise ValueError(f"attempt to call disabled function {self}")
     if self.variadic:
@@ -1294,20 +1306,25 @@ class Function(_Functional, _Parametrized, _VisibilityManager):
       raise ValueError(f"attempt to render definition for abstract function {self}")
     if not hasattr(self, "code"):
       raise ValueError(f"missing body of non-abstract function {self}")
-    match self.code:
-      case Iterable(): cs = [str(x) for x in self.code]
-      case _ if callable(self.code):
-        argc = getattr(getattr(self.code, "__code__", None), "co_argcount", None)
-        if argc is None:
-          try:
+    _authoring.append(self)
+    self._begin_capture()
+    try:
+      match self.code:
+        case Iterable(): cs = [str(x) for x in self.code]
+        case _ if callable(self.code):
+          argc = getattr(getattr(self.code, "__code__", None), "co_argcount", None)
+          if argc is None:
+            try:
+              cs = [str(self.code(self))]
+            except TypeError:
+              cs = [str(self.code())]
+          elif argc > 0:
             cs = [str(self.code(self))]
-          except TypeError:
+          else:
             cs = [str(self.code())]
-        elif argc > 0:
-          cs = [str(self.code(self))]
-        else:
-          cs = [str(self.code())]
-      case _: cs = [str(self.code)]
+        case _: cs = [str(self.code)]
+    finally:
+      _authoring.pop()
     return str().join(("{", *cs, "}\n"))
 
   @property
@@ -1319,9 +1336,12 @@ class Function(_Functional, _Parametrized, _VisibilityManager):
     return self._declaration_c(True) + self._body_c
 
   def __enter__(self):
+    _authoring.append(self)
+    self._begin_capture()
     return self
-  
+
   def __exit__(self, *args):
+    _authoring.pop()
     return False
 
   def body(self, func):
@@ -1331,6 +1351,42 @@ class Function(_Functional, _Parametrized, _VisibilityManager):
   def inline_body(self, func):
     self.inline_code = func
     return func
+
+  #
+  def _register_reference(self, entity):
+    # The invocation-captured references are tracked per the body currently
+    # being authored or evaluated so that a body replacement can drop the
+    # ones the previous body had captured - the explicit references=
+    # declarations never pass here and so are always retained
+    self._capture_log.append(entity)
+
+  #
+  def _begin_capture(self):
+    if not hasattr(self, "_capture_log"):
+      self._capture_log = []
+    self._capture_mark = len(self._capture_log)
+
+  #
+  @property
+  def code(self):
+    try:
+      return self._code
+    except AttributeError:
+      raise AttributeError(f"{self} has no code") from None
+
+  #
+  @code.setter
+  def code(self, value):
+    # The replacement body re-registers the references it really uses - the
+    # invocations of an f-string body evaluate before the assignment while
+    # the plain string bodies must declare their textual calls explicitly
+    log = getattr(self, "_capture_log", [])
+    mark = getattr(self, "_capture_mark", 0)
+    stale = set(log[:mark]) - set(log[mark:])
+    for entity in stale:
+      self.references.discard(entity)
+    del log[:mark]
+    self._code = value
 
   def __inline_code(self, obj):
     self.linkage = "inline"
@@ -1378,6 +1434,32 @@ class Function(_Functional, _Parametrized, _VisibilityManager):
       else:
         if not header:
           self._render_definition(stream)
+
+  #
+  @property
+  def _source_declarations_consume(self):
+    # The inline bodies render into the source declarations keeping their
+    # references consumed at the translation unit scope - the external
+    # function prototypes do not
+    return self.internal and self.inline and not self.abstract
+
+  #
+  def _current(self):
+    # The staged construction replaces the methods which the derived type
+    # setups redeclare while the default bodies of the earlier phases are
+    # still being evaluated, so the references captured along the way may
+    # address the already replaced objects - resolve to the method which
+    # the owning type attribute currently holds
+    e = self
+    seen = set()
+    while isinstance(e, Function) and e not in seen:
+      seen.add(e)
+      t, a = getattr(e, "type", None), getattr(e, "_attribute", None)
+      nxt = getattr(t, a, e) if t is not None and a is not None else e
+      if nxt is e:
+        break
+      e = nxt
+    return e
 
   #
   def _render_definition(self, stream):
