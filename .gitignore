@@ -7,3 +7,5 @@ test_auto*
 *_auto.*
 html
 __pycache__
+dist/
+src/metac.egg-info/
