@@ -103,13 +103,6 @@ class Header(_EntityContainer, _SmartRenderer):
         stream.write(chunk)
     self.render_epilogue(stream)
 
-  def render_prologue(self, stream):
-    stream.write(f"""
-      {_caption}
-      #ifndef {self.tag}
-      #define {self.tag}
-    """.lstrip())
-
   def render_epilogue(self, stream):
     stream.write("\n#endif\n")
 

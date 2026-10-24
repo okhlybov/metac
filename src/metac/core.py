@@ -171,7 +171,7 @@ class _Coercion(type):
     return f"({_contract_name(cls.source)}) -> ({_contract_name(cls.target)})"
 
 
-def _corce(source, target):
+def _coerce(source, target):
   return _Coercion("_Coercion", (), {"source": source, "target": target})
 
 
@@ -180,11 +180,11 @@ class _CoerceMetaclass(type):
   def __getitem__(cls, item):
     if isinstance(item, tuple):
       if len(item) == 2:
-        return _corce(item[0], item[1])
+        return _coerce(item[0], item[1])
       raise ValueError("Coerce[...] takes 1 or 2 arguments")
     T = globals().get("Type")
     source = (str | T) if T is not None else str
-    return _corce(source, item)
+    return _coerce(source, item)
 
 
 class Coerce(metaclass=_CoerceMetaclass):
@@ -1309,10 +1309,6 @@ class Function(_Functional, _Parametrized, _VisibilityManager):
           cs = [str(self.code())]
       case _: cs = [str(self.code)]
     return str().join(("{", *cs, "}\n"))
-
-  @property
-  def declaration(self):
-    return self._declaration_c(False)
 
   @property
   def definition(self):

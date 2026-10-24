@@ -38,7 +38,7 @@ def configure_module(module):
 
 class Unit(metac.module.Code):
 
-  def __init__(self, name, dependencies=[]):
+  def __init__(self, name, dependencies=()):
     super().__init__(dependencies=[code, *dependencies])
     self.name = name
     codes.add(self)
@@ -66,7 +66,7 @@ class Unit(metac.module.Code):
 
 class Type(Unit):
 
-  def __init__(self, type, dependencies=[], name=None):
+  def __init__(self, type, dependencies=(), name=None):
     self.type = metac.core._type(type)
     if name is None:
       name = self.type.name

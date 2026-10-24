@@ -343,7 +343,6 @@ class Counter(_StructRenderer, Multiset):
 
     with self.equal_range as m:
       result = m.result.variable("result")
-      single = self.element.variable("result.single_element")
       m.code = lambda m: f"""
         {result.definition};
         size_t cnt;
@@ -352,15 +351,12 @@ class Counter(_StructRenderer, Multiset):
         result.counter = target;
         result.is_single = 1;
         result.single_count = cnt;
-        if(cnt > 0) {{
-          {self.element.copy(single, m.element)};
-        }}
+        result.single_view = {self.find_view(m.target, m.element)};
         return {result};
       """
 
     # --- Algebraic multiset operations ---
     r = self.range.variable("r")
-    elem = self.element.variable("elem")
 
     with self.apply_union as m:
       m.code = lambda m: f"""
@@ -370,11 +366,10 @@ class Counter(_StructRenderer, Multiset):
         assert(other);
         if(target == other) return 0;
         for({r} = {self.range.new(m.other)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
-          {elem.definition} = {self.range.front(r)};
           size_t o_cnt = {self.range.count(r)};
-          size_t t_cnt = {self.count(m.target, elem)};
+          size_t t_cnt = {self.count(m.target, self.range.front_view(r))};
           if(o_cnt > t_cnt) {{
-            {self.add(m.target, elem, "o_cnt - t_cnt")};
+            {self.add(m.target, self.range.front_view(r), "o_cnt - t_cnt")};
             added += o_cnt - t_cnt;
           }}
         }}
@@ -393,9 +388,8 @@ class Counter(_StructRenderer, Multiset):
           return removed;
         }}
         for({r} = {self.range.new(m.other)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
-          {elem.definition} = {self.range.front(r)};
           size_t o_cnt = {self.range.count(r)};
-          removed += {self.subtract(m.target, elem, "o_cnt")};
+          removed += {self.subtract(m.target, self.range.front_view(r), "o_cnt")};
         }}
         return removed;
       """
@@ -412,13 +406,12 @@ class Counter(_StructRenderer, Multiset):
         {self.create(temp)};
         {self.copy(temp, m.target)};
         for({r} = {self.range.new(temp)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
-          {elem.definition} = {self.range.front(r)};
           size_t t_cnt = {self.range.count(r)};
-          size_t o_cnt = {self.count(m.other, elem)};
+          size_t o_cnt = {self.count(m.other, self.range.front_view(r))};
           if(o_cnt == 0) {{
-            removed += {self.wipe(m.target, elem)};
+            removed += {self.wipe(m.target, self.range.front_view(r))};
           }} else if(t_cnt > o_cnt) {{
-            removed += {self.subtract(m.target, elem, "t_cnt - o_cnt")};
+            removed += {self.subtract(m.target, self.range.front_view(r), "t_cnt - o_cnt")};
           }}
         }}
         {self.destroy(temp)};
@@ -440,27 +433,19 @@ class Counter(_StructRenderer, Multiset):
         }}
         {self.create(temp)};
         for({r} = {self.range.new(m.other)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
-          {elem.definition} = {self.range.front(r)};
           size_t o_cnt = {self.range.count(r)};
-          size_t t_cnt = {self.count(m.target, elem)};
+          size_t t_cnt = {self.count(m.target, self.range.front_view(r))};
           if(o_cnt > t_cnt) {{
-            {self.add(temp, elem, "o_cnt - t_cnt")};
+            {self.add(temp, self.range.front_view(r), "o_cnt - t_cnt")};
           }}
-        }}
-        for({r} = {self.range.new(m.target)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
-          {elem.definition} = {self.range.front(r)};
-          size_t t_cnt = {self.range.count(r)};
-          size_t o_cnt = {self.count(m.other, elem)};
-          if(o_cnt > 0) {{
+          if(t_cnt > 0) {{
             size_t rem = t_cnt > o_cnt ? o_cnt : t_cnt;
-            {self.subtract(m.target, elem, "rem")};
-            changed += rem;
+            changed += {self.subtract(m.target, self.range.front_view(r), "rem")};
           }}
         }}
         for({r} = {self.range.new(temp)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
-          {elem.definition} = {self.range.front(r)};
           size_t cnt = {self.range.count(r)};
-          {self.add(m.target, elem, "cnt")};
+          {self.add(m.target, self.range.front_view(r), "cnt")};
           changed += cnt;
         }}
         {self.destroy(temp)};
@@ -481,21 +466,19 @@ class Counter(_StructRenderer, Multiset):
         if({m.left}->total_size >= {m.right}->total_size) {{
           {self.copy(m.target, m.left)};
           for({r} = {self.range.new(m.right)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
-            {elem.definition} = {self.range.front(r)};
             size_t o_cnt = {self.range.count(r)};
-            size_t t_cnt = {self.count(m.target, elem)};
+            size_t t_cnt = {self.count(m.target, self.range.front_view(r))};
             if(o_cnt > t_cnt) {{
-              {self.add(m.target, elem, "o_cnt - t_cnt")};
+              {self.add(m.target, self.range.front_view(r), "o_cnt - t_cnt")};
             }}
           }}
         }} else {{
           {self.copy(m.target, m.right)};
           for({r} = {self.range.new(m.left)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
-            {elem.definition} = {self.range.front(r)};
             size_t o_cnt = {self.range.count(r)};
-            size_t t_cnt = {self.count(m.target, elem)};
+            size_t t_cnt = {self.count(m.target, self.range.front_view(r))};
             if(o_cnt > t_cnt) {{
-              {self.add(m.target, elem, "o_cnt - t_cnt")};
+              {self.add(m.target, self.range.front_view(r), "o_cnt - t_cnt")};
             }}
           }}
         }}
@@ -515,20 +498,18 @@ class Counter(_StructRenderer, Multiset):
         {self.create(m.target)};
         if({self.distinct_size(m.left)} <= {self.distinct_size(m.right)}) {{
           for({r} = {self.range.new(m.left)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
-            {elem.definition} = {self.range.front(r)};
-            size_t o_cnt = {self.count(m.right, elem)};
+            size_t o_cnt = {self.count(m.right, self.range.front_view(r))};
             if(o_cnt > 0) {{
               size_t l_cnt = {self.range.count(r)};
-              {self.add(m.target, elem, "l_cnt < o_cnt ? l_cnt : o_cnt")};
+              {self.add(m.target, self.range.front_view(r), "l_cnt < o_cnt ? l_cnt : o_cnt")};
             }}
           }}
         }} else {{
           for({r} = {self.range.new(m.right)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
-            {elem.definition} = {self.range.front(r)};
-            size_t o_cnt = {self.count(m.left, elem)};
+            size_t o_cnt = {self.count(m.left, self.range.front_view(r))};
             if(o_cnt > 0) {{
               size_t r_cnt = {self.range.count(r)};
-              {self.add(m.target, elem, "r_cnt < o_cnt ? r_cnt : o_cnt")};
+              {self.add(m.target, self.range.front_view(r), "r_cnt < o_cnt ? r_cnt : o_cnt")};
             }}
           }}
         }}
@@ -551,11 +532,10 @@ class Counter(_StructRenderer, Multiset):
         {r.definition};
         {self.create(m.target)};
         for({r} = {self.range.new(m.left)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
-          {elem.definition} = {self.range.front(r)};
           size_t l_cnt = {self.range.count(r)};
-          size_t r_cnt = {self.count(m.right, elem)};
+          size_t r_cnt = {self.count(m.right, self.range.front_view(r))};
           if(l_cnt > r_cnt) {{
-            {self.add(m.target, elem, "l_cnt - r_cnt")};
+            {self.add(m.target, self.range.front_view(r), "l_cnt - r_cnt")};
           }}
         }}
       """
@@ -573,19 +553,17 @@ class Counter(_StructRenderer, Multiset):
         {r.definition};
         {self.create(m.target)};
         for({r} = {self.range.new(m.left)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
-          {elem.definition} = {self.range.front(r)};
           size_t l_cnt = {self.range.count(r)};
-          size_t r_cnt = {self.count(m.right, elem)};
+          size_t r_cnt = {self.count(m.right, self.range.front_view(r))};
           if(l_cnt > r_cnt) {{
-            {self.add(m.target, elem, "l_cnt - r_cnt")};
+            {self.add(m.target, self.range.front_view(r), "l_cnt - r_cnt")};
           }}
         }}
         for({r} = {self.range.new(m.right)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
-          {elem.definition} = {self.range.front(r)};
           size_t r_cnt = {self.range.count(r)};
-          size_t l_cnt = {self.count(m.left, elem)};
+          size_t l_cnt = {self.count(m.left, self.range.front_view(r))};
           if(r_cnt > l_cnt) {{
-            {self.add(m.target, elem, "r_cnt - l_cnt")};
+            {self.add(m.target, self.range.front_view(r), "r_cnt - l_cnt")};
           }}
         }}
       """
@@ -598,9 +576,8 @@ class Counter(_StructRenderer, Multiset):
         if(target == other) return 1;
         if(target->total_size > other->total_size) return 0;
         for({r} = {self.range.new(m.target)}; !{self.range.empty(r)}; {self.range.move_front(r)}) {{
-          {elem.definition} = {self.range.front(r)};
           size_t t_cnt = {self.range.count(r)};
-          size_t o_cnt = {self.count(m.other, elem)};
+          size_t o_cnt = {self.count(m.other, self.range.front_view(r))};
           if(t_cnt > o_cnt) return 0;
         }}
         return 1;
@@ -631,7 +608,7 @@ class Range(_Range, Forward):
       struct {self.name} {{
         {self._map_range.name} range; /**< @private */
         const {self.iterable.name}* counter; /**< @private */
-        {self.element} single_element; /**< @private */
+        {self.element.view_type} single_view; /**< @private */
         size_t single_count; /**< @private */
         int is_single; /**< @private */
       }};
@@ -687,14 +664,19 @@ class Range(_Range, Forward):
     with self.front_view as m:
       m.code = f"""
         assert(target);
-        if(target->is_single) return &target->single_element;
+        if(target->is_single) return target->single_view;
         return {self._map_range.index_front_view(_range)};
       """
 
     with self.front as m:
+      result = m.result.variable("result")
       m.code = f"""
         assert(target);
-        if(target->is_single) return target->single_element;
+        if(target->is_single) {{
+          {result.definition};
+          {self.element.copy(result, self.element.view_type.variable("target->single_view"))};
+          return {result};
+        }}
         return {self._map_range.index_front(_range)};
       """
 

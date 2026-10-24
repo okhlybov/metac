@@ -202,10 +202,12 @@ int main(void) {
 With CMake:
 
 ```sh
-cmake --preset debug
-cmake --build --preset debug
-./build/debug/readings
+cmake --preset ninja-Debug
+cmake --build --preset ninja-Debug
+./build/ninja-Debug/readings
 ```
+
+The scaffolder offers single-config `ninja-Debug`/`ninja-Release` presets on every platform, `make-Debug`/`make-Release` on POSIX, and `vs2022`/`vs2026` Visual Studio presets on Windows (where the binary is `readings.exe`).
 
 With SCons:
 
@@ -348,7 +350,7 @@ executable('myapp', sources: ['myapp.c'], dependencies: [metac_dep])
 
 ## How it tests itself
 
-The repository's test suite is written the way users write code: Python scripts in `src/metac/test/` define container instances and their unit tests, and `metac` generates a C test module (`test_auto.c`, ~2,200 lines) that is compiled and executed as part of the build. The generator is only as good as the C it produces, so that is what gets tested.
+The repository's test suite is written the way users write code: Python scripts in `src/metac/test/` define container instances and their unit tests, and `metac` generates a C test suite from them — `test_auto.h` plus `test_auto*.c`, currently 18 translation units and some 62,000 lines — that is compiled and executed as part of the build. The generator is only as good as the C it produces, so that is what gets tested.
 
 ## License
 

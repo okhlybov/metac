@@ -233,6 +233,56 @@ x.unit(f"{type.apply_difference}(): multiset difference", f"""
   {type.destroy(t1)};
 """)
 
+x.unit(f"{type.apply_symmetric_difference}(): multiset symmetric difference (absolute count difference)", f"""
+  {t1.definition};
+  {type.create(t1)};
+
+  {type.add(t, 10, 5)};
+  {type.add(t, 20, 2)};
+
+  {type.add(t1, 10, 3)};
+  {type.add(t1, 20, 6)};
+  {type.add(t1, 30, 4)};
+
+  TEST_EQUAL( {type.apply_symmetric_difference(t, t1)}, 13 );
+  /* |5 - 3| = 2 for 10; |2 - 6| = 4 for 20; |0 - 4| = 4 for 30 */
+  TEST_EQUAL( {type.count(t, 10)}, 2 );
+  TEST_EQUAL( {type.count(t, 20)}, 4 );
+  TEST_EQUAL( {type.count(t, 30)}, 4 );
+  TEST_EQUAL( {type.size(t)}, 10 );
+  TEST_EQUAL( {type.distinct_size(t)}, 3 );
+
+  {type.destroy(t1)};
+""")
+
+x.unit(f"{type.apply_symmetric_difference}(): adjacent shared elements clear completely", f"""
+  {t1.definition};
+  {type.create(t1)};
+
+  {type.add(t, 1, 1)};
+  {type.add(t, 2, 1)};
+
+  {type.add(t1, 1, 1)};
+  {type.add(t1, 2, 1)};
+
+  /* Both entries are removed one after another while their storage shrinks */
+  TEST_EQUAL( {type.apply_symmetric_difference(t, t1)}, 2 );
+  TEST_TRUE( {type.empty(t)} );
+  TEST_EQUAL( {type.size(t)}, 0 );
+  TEST_EQUAL( {type.distinct_size(t)}, 0 );
+
+  {type.destroy(t1)};
+""")
+
+x.unit(f"{type.apply_symmetric_difference}(): self-aliasing empties the counter", f"""
+  {type.add(t, 10, 3)};
+  {type.add(t, 20, 2)};
+
+  TEST_EQUAL( {type.apply_symmetric_difference(t, t)}, 5 );
+  TEST_TRUE( {type.empty(t)} );
+  TEST_EQUAL( {type.size(t)}, 0 );
+""")
+
 x.unit(f"{type.create_union}(): constructing union from immutable sources", f"""
   {t1.definition};
   {t2.definition};
@@ -390,6 +440,7 @@ x.unit(f"{type.equal_range}(): get range spanning element occurrences", f"""
 # Also test Counter backed by ChainedHashMap
 x_hash = Type(type_h := Counter("hash_int_counter", "int", metac.chained_hash_map.Map))
 th = type_h.variable("th")
+t1h = type_h.variable("t1h")
 
 x_hash.setup(f"""
   {th.definition};
@@ -413,4 +464,26 @@ x_hash.unit(f"{type_h}: operates with ChainedHashMap backend", f"""
   TEST_EQUAL( {type_h.wipe(th, 200)}, 10 );
   TEST_EQUAL( {type_h.size(th)}, 1 );
   TEST_EQUAL( {type_h.distinct_size(th)}, 1 );
+""")
+
+x_hash.unit(f"{type_h.apply_symmetric_difference}(): crash regression over hash backend", f"""
+  {t1h.definition};
+  {type_h.create(t1h)};
+
+  {type_h.add(th, 100, 1)};
+  {type_h.add(th, 200, 1)};
+
+  {type_h.add(t1h, 200, 1)};
+  {type_h.add(t1h, 300, 1)};
+
+  /* Removing the shared element while walking the other counter once crashed
+     the chained-hash backend by freeing the node under the active range */
+  TEST_EQUAL( {type_h.apply_symmetric_difference(th, t1h)}, 2 );
+  TEST_EQUAL( {type_h.count(th, 100)}, 1 );
+  TEST_EQUAL( {type_h.count(th, 200)}, 0 );
+  TEST_EQUAL( {type_h.count(th, 300)}, 1 );
+  TEST_EQUAL( {type_h.size(th)}, 2 );
+  TEST_EQUAL( {type_h.distinct_size(th)}, 2 );
+
+  {type_h.destroy(t1h)};
 """)
