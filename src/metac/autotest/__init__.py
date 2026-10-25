@@ -289,10 +289,10 @@ class Scaffolder:
       "@module@.c": None,
     } | dict(resources or {})
 
-    params = dict(project="metac-autotest", module="autotest") | dict(parameters or {})
+    params = dict(project="metac-autotest", module="autotest", user_files=()) | dict(parameters or {})
     return base_cls(resources=custom_resources, parameters=params)
 
 
-def generate(directory=".", backend="cmake"):
-  Scaffolder(backend=backend).generate(directory)
+def generate(directory=".", backend="cmake", upgrade=False):
+  Scaffolder(backend=backend).generate(directory, upgrade=upgrade)
 

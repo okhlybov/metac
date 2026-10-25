@@ -40,7 +40,7 @@ class Scaffolder(metac.scaffolder.Scaffolder):
       parameters=params,
     )
 
-  def generate(self, target="."):
+  def generate(self, target=".", upgrade=False):
     target_path = pathlib.Path(target).resolve()
     import metac
     metac_source = pathlib.Path(metac.__file__).resolve().parent.parent
@@ -55,7 +55,7 @@ class Scaffolder(metac.scaffolder.Scaffolder):
     except ValueError:
       self.parameters["metac_path"] = metac_source.as_posix()
 
-    super().generate(target)
+    super().generate(target, upgrade=upgrade)
 
 
 def generate(directory=".", project=None, backend="cmake", **kwargs):

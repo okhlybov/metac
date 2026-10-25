@@ -39,6 +39,7 @@ class Scaffolder:
       doc_pages=doc_pages_str,
       doc_mainpage=doc_mainpage_str,
       src_path=metac_source.as_posix(),
+      user_files=(), # the doc module script is metac-owned wiring, not user code
     )
 
     custom_resources = {
@@ -51,7 +52,7 @@ class Scaffolder:
 
     class DocScaffolder(base_cls):
 
-      def generate(self, target="."):
+      def generate(self, target=".", upgrade=False):
         target_path = pathlib.Path(target).resolve()
         metac_source = pathlib.Path(metac.__file__).resolve().parent.parent
         try:
@@ -64,10 +65,10 @@ class Scaffolder:
         except ValueError:
           self.parameters["src_path"] = metac_source.as_posix()
 
-        super().generate(target)
+        super().generate(target, upgrade=upgrade)
 
     return DocScaffolder(resources=custom_resources, parameters=doc_parameters | params)
 
 
-def generate(directory=".", project="doc", backend="cmake"):
-  Scaffolder(parameters=dict(project=project, module=project), backend=backend).generate(directory)
+def generate(directory=".", project="doc", backend="cmake", upgrade=False):
+  Scaffolder(parameters=dict(project=project, module=project), backend=backend).generate(directory, upgrade=upgrade)
