@@ -1,0 +1,161 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The heart of the project: the generated C code is the deliverable, so the
+  # generator is validated by compiling and running its own test suites with
+  # every supported compiler family. Both suites are scaffolded from the
+  # package (python -m metac.test / metac.autotest) - the test/ directory in
+  # the repository is generated scratch and not tracked.
+  c-suites:
+    name: C suites / ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-gcc
+            os: ubuntu-latest
+            preset: make-Debug
+            cc: gcc
+            cxx: g++
+          - name: linux-clang
+            os: ubuntu-latest
+            preset: make-Debug
+            cc: clang
+            cxx: clang++
+          - name: macos-clang
+            os: macos-latest
+            preset: make-Debug
+            cc: cc
+            cxx: c++
+          - name: windows-msvc
+            os: windows-latest
+            preset: vs2022-Debug
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install generator
+        run: python -m pip install -e .
+
+      - name: Python-side trait tests
+        run: python -c "import metac.test.test_traits"
+
+      - name: Scaffold the test suites
+        run: |
+          python -m metac.test build/main-suite
+          python -m metac.autotest build/autotest-suite
+
+      - name: Main test suite
+        working-directory: build/main-suite
+        run: |
+          cmake --preset ${{ matrix.preset }}
+          cmake --build --preset ${{ matrix.preset }}
+          ctest --preset ${{ matrix.preset }} --output-on-failure
+
+      - name: Programmatic autotest suite
+        working-directory: build/autotest-suite
+        run: |
+          cmake --preset ${{ matrix.preset }}
+          cmake --build --preset ${{ matrix.preset }}
+          ctest --preset ${{ matrix.preset }} --output-on-failure
+
+  # Build-system integration smoke: scaffold a sample project through every
+  # supported backend and take it through configure/build/run.
+  scaffolds:
+    name: Project scaffolds
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install generator and build tools
+        run: python -m pip install -e . scons meson ninja
+
+      - name: CMake backend
+        run: |
+          python -m metac.cmake build/sample_cmake
+          cmake --preset ninja-Debug -S build/sample_cmake
+          cmake --build --preset ninja-Debug -S build/sample_cmake
+          ./build/sample_cmake/build/ninja-Debug/sample_cmake
+
+      - name: SCons backend
+        run: |
+          python -m metac.scons build/sample_scons
+          scons -C build/sample_scons
+          ./build/sample_scons/sample_scons
+
+      - name: Meson backend
+        run: |
+          python -m metac.meson build/sample_meson
+          meson setup buildir -C build/sample_meson
+          meson compile -C build/sample_meson/buildir
+          ./build/sample_meson/buildir/sample_meson
+
+  # The generator itself is pure Python - fan out over the supported versions
+  # and exercise generation (which also runs the trait tests at import).
+  python:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install generator
+        run: python -m pip install -e .
+
+      - name: Python-side trait tests
+        run: python -c "import metac.test.test_traits"
+
+      - name: Generate both test suites
+        run: |
+          python -m metac.test build/gen-main
+          python -m metac.autotest build/gen-autotest
+          test -f build/gen-main/test_auto.h
+          test -f build/gen-autotest/autotest_auto.h
+
+  # Mirror of publish.sh: the distribution must build and pass twine.
+  package:
+    name: Package check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build and check the distribution
+        run: |
+          python -m pip install build twine
+          python -m build
+          twine check dist/*
