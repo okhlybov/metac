@@ -146,6 +146,12 @@ def add_metac_module(env, module, directory=".", main_dependency=None, command=N
 
   env.AppendUnique(CPPPATH=[directory])
   objs = env.Object(source_paths) if source_paths else []
+  # The unconditional generation mode demands the unconditional recompilation
+  # of the generated translation units as well - the stateless generation
+  # preserves the timestamps of the unchanged files so the incremental build
+  # would otherwise consider them up to date
+  if metac_mode == "ON" and objs:
+    env.AlwaysBuild(objs)
   return MetaCModuleResult(module, directory, header_path, source_paths, objs)
 
 

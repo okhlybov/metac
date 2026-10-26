@@ -43,12 +43,24 @@ metac_mod = env.MetaCModule(
   main_dependency=f"{module}.py",
 )
 
+# The unconditional generation mode demands the unconditional recompilation
+# of the generated translation units as well - the stateless generation
+# preserves the contents of the unchanged files so the content-based build
+# avoidance would otherwise consider them - and the binary linked from the
+# recompiled but content-identical objects - up to date, matching the cmake
+# backend behavior
+_force = str(env.get("METAC", "auto")).lower() == "on"
+if _force and metac_mod.objects:
+  env.AlwaysBuild(metac_mod.objects)
+
 app_sources = [f"{project}.c"] if os.path.exists(f"{project}.c") else []
 all_sources = app_sources + metac_mod.sources
 
 if all_sources:
   app = env.Program(target=project, source=all_sources)
   Default(app)
+  if _force:
+    env.AlwaysBuild(app)
 
 if os.path.exists("Doxyfile"):
   doc = env.Command("reference", [metac_mod.header, "Doxyfile"], "doxygen Doxyfile")
