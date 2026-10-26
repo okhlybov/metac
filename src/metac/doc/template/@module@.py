@@ -7,11 +7,8 @@ if src_path.is_dir():
 
 import metac
 import metac.doc
-import @generator_module@
 import metac.module
 
-name = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("-") else "@module@"
-
-with @generator@():
-  with metac.module.Module(name, source_count=0) as m:
+with metac.builder(default="@backend@"):
+  with metac.module(default="@module@", stateful=False, source_count=0) as m:
     metac.doc.configure_module(m)

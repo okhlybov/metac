@@ -261,7 +261,7 @@ class Scaffolder:
       "@module@.c": None,
     } | dict(resources or {})
 
-    params = dict(project="metac-test", module="test", user_files=()) | dict(parameters or {})
+    params = dict(project="metac-test", module="test", metac_mode="ON", user_files=()) | dict(parameters or {})
     return base_cls(resources=custom_resources, parameters=params)
 
 

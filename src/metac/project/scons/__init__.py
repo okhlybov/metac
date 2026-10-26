@@ -48,9 +48,14 @@ def _site_config():
 
 class Scaffolder(metac.project.Scaffolder):
 
+  # The SConstruct variable spelling of the generation modes
+  _modes = {"ON": "on", "AUTO": "auto", "OFF": "off"}
+
   def __init__(self, resources=None, parameters=None):
     import metac
     metac_dir = pathlib.Path(metac.__file__).resolve().parent.parent.as_posix()
+
+    mode = str(dict(parameters or {}).get("metac_mode", "AUTO")).upper()
 
     super().__init__(
       resources={
@@ -62,7 +67,7 @@ class Scaffolder(metac.project.Scaffolder):
         ".vscode/tasks.json": reader,
         ".gitignore": reader,
       } | (resources or {}),
-      parameters=dict(generator="metac.scons.SCons", metac_path=metac_dir) | dict(parameters or {})
+      parameters=dict(generator="metac.scons.SCons", backend="scons", metac_path=metac_dir) | dict(parameters or {}) | {"metac_mode": self._modes.get(mode, "auto")}
     )
 
 

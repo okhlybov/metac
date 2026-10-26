@@ -50,10 +50,10 @@ class Scaffolder:
       for file, reader in self.resources.items():
         if not reader is None: # Override entry with value None to disable the respective file generation
           name = self.interpolate(file, self.parameters)
-          if upgrade and os.path.basename(name) in user_files:
+          exists = os.path.exists(name)
+          if upgrade and exists and os.path.basename(name) in user_files:
             preserved.append(name)
             continue
-          exists = os.path.exists(name)
           if exists and not upgrade:
             skipped.append(name)
             continue

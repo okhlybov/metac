@@ -39,6 +39,7 @@ class Scaffolder:
       doc_pages=doc_pages_str,
       doc_mainpage=doc_mainpage_str,
       src_path=metac_source.as_posix(),
+      metac_mode="ON", # the documentation is always regenerated from the live sources
       user_files=(), # the doc module script is metac-owned wiring, not user code
     )
 

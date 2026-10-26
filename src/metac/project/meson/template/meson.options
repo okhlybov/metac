@@ -1,5 +1,5 @@
 option('regenerate',
   type: 'feature',
-  value: 'auto',
+  value: '@regenerate_default@',
   description: 'Regenerate MetaC sources using Python (auto: only if missing or Python found)'
 )

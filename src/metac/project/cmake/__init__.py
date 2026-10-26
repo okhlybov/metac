@@ -62,7 +62,7 @@ class Scaffolder(metac.project.Scaffolder):
         ".vscode/launch.json": reader,
         ".gitignore": reader,
       } | (resources or {}),
-      parameters=dict(generator="metac.cmake.CMake", metac_path=metac_dir) | dict(parameters or {})
+      parameters=dict(generator="metac.cmake.CMake", backend="cmake", metac_path=metac_dir) | dict(parameters or {}) | {"metac_mode": str(dict(parameters or {}).get("metac_mode", "AUTO")).upper()}
     )
 
 

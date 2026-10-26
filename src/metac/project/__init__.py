@@ -30,6 +30,10 @@ class Scaffolder(metac.scaffolder.Scaffolder):
     params.setdefault("generator", generator)
     if "generator_module" not in params:
       params["generator_module"] = generator.rpartition(".")[0] if "." in generator else generator
+    # The default code generation mode baked into the build files: custom
+    # projects stay fully automatic while the derived scaffolds (the test
+    # suites, the documentation) override it with unconditional regeneration
+    params.setdefault("metac_mode", "AUTO")
 
     import metac
     metac_dir = pathlib.Path(metac.__file__).resolve().parent.parent.as_posix()

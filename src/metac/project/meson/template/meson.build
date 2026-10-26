@@ -36,19 +36,42 @@ if site_pythonpath != ''
   env_cmd = ['env', 'PYTHONPATH=' + site_pythonpath]
 endif
 
-if not has_meson_file
+# The fragment and the sources it lists are consumed at configure time, so
+# the module is brought into existence right here - when the fragment is
+# missing, when the forced regeneration mode demands it, or in the auto mode
+# when any of the listed sources has disappeared - mirroring the resilience
+# of the cmake and scons backends
+run_generator = not has_meson_file or regen_opt.enabled()
+if not run_generator and regen_opt.auto() and py.found()
+  foreach f : fs.read(meson_file).strip().split()
+    if not fs.exists(f)
+      run_generator = true
+    endif
+  endforeach
+endif
+
+if run_generator
   if not py.found()
-    error('MetaC generator requires Python 3, but Python was not found and ' + meson_file + ' is missing.')
+    error('MetaC generator requires Python 3, but Python was not found and ' + meson_file + ' is missing or the sources it lists have disappeared.')
   endif
-  message('Bootstrapping MetaC module ' + module_name)
+  message((has_meson_file ? 'Regenerating' : 'Bootstrapping') + ' MetaC module ' + module_name)
   if env_cmd.length() > 0
-    run_command(env_cmd, py, module_name + '.py', module_name, check: true)
+    run_command(env_cmd, py, module_name + '.py', module_name, '--backend=meson', check: true)
   else
-    run_command(py, module_name + '.py', module_name, check: true)
+    run_command(py, module_name + '.py', module_name, '--backend=meson', check: true)
   endif
 endif
 
 metac_file_names = fs.read(meson_file).strip().split()
+
+# Reading every generated file registers it as a configure dependency so that
+# ninja reruns this setup whenever the files appear, change or disappear -
+# the meson equivalent of cmake's CMAKE_CONFIGURE_DEPENDS - which is what
+# lets the configure-time regeneration above bring the deleted sources back
+foreach f : metac_file_names
+  fs.read(f)
+endforeach
+
 metac_sources = files(metac_file_names)
 
 need_generator = regen_opt.enabled() or (regen_opt.auto() and py.found())
@@ -59,7 +82,7 @@ if need_generator
     gen_cmd += env_cmd
   endif
   stamp_file = meson.current_build_dir() / (module_name + '.stamp')
-  gen_cmd += [py, '@INPUT@', module_name, stamp_file]
+  gen_cmd += [py, '@INPUT@', module_name, '--backend=meson', stamp_file]
 
   module_gen = custom_target(
     module_name + '-generate',

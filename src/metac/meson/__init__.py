@@ -1,5 +1,6 @@
-import sys
+import os
 import pathlib
+import metac.backend
 import metac.module
 
 
@@ -13,7 +14,7 @@ class Meson:
       self._generate(module, stamp=stamp)
 
   def _generate(self, module, stamp=None):
-    meson = f"{module.name}.meson"
+    meson = os.path.join(module.directory, f"{module.name}.meson")
     files = [module.header.file_name] + [s.file_name for s in module.sources]
     contents = "\n".join(files) + "\n"
     try:
@@ -24,8 +25,8 @@ class Meson:
       with open(meson, "w") as f:
         f.write(contents)
     st = stamp or self.stamp
-    if not st and len(sys.argv) > 2 and not sys.argv[2].startswith("-"):
-      st = sys.argv[2]
+    if not st:
+      _, _, st = metac.backend.parse()
     if st:
       if module.stateful:
         pathlib.Path(st).touch()
@@ -36,7 +37,7 @@ class Meson:
           pass
     elif not module.stateful:
       try:
-        pathlib.Path(f"{module.name}.stamp").unlink(missing_ok=True)
+        pathlib.Path(os.path.join(module.directory, f"{module.name}.stamp")).unlink(missing_ok=True)
       except OSError:
         pass
 

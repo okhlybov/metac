@@ -1,9 +1,10 @@
+import os
 import metac.module
 
 
 #
 class CMake:
-  
+
   module = None
 
   def __init__(self, module=None):
@@ -11,7 +12,7 @@ class CMake:
       self._generate(module)
 
   def _generate(self, module):
-    cmake = f"{module.name}.cmake"
+    cmake = os.path.join(module.directory, f"{module.name}.cmake")
     sorted_sources = sorted(module.sources, key=lambda s: s.index)
     sources = " ".join([f"${{CMAKE_CURRENT_SOURCE_DIR}}/{s.file_name}" for s in sorted_sources])
     # A documentation-only module (source_count = 0) emits no translation units and

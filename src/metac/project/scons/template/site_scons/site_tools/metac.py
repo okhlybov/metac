@@ -32,7 +32,7 @@ def add_metac_module(env, module, directory=".", main_dependency=None, command=N
   module_state = os.path.join(directory, ".metac", f"{module}.state")
   py_exec = env.get("PYTHON", sys.executable)
   if not command:
-    command = [py_exec, os.path.abspath(main_dependency), module]
+    command = [py_exec, os.path.abspath(main_dependency), module, "--backend=scons"]
 
   if metac_mode == "OFF":
     if not os.path.exists(module_scons):
