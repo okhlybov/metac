@@ -43,13 +43,17 @@ class Scaffolder:
       user_files=(), # the doc module script is metac-owned wiring, not user code
     )
 
+    # The doc pages are emitted into the project rather than referenced from
+    # the package: passing them through the scaffolder interpolates their
+    # @version@ placeholders, which Doxygen would otherwise report as unknown
+    # commands, and the emitted copies remain usable when the package moves
     custom_resources = {
       "Doxyfile": reader,
       "@module@.py": reader,
       "catalog.py": reader,
       "@module@.c": None,
       ".gitignore": reader,
-    } | dict(resources or {})
+    } | {p.name: p.read_text(encoding="utf-8") for p in pages} | dict(resources or {})
 
     class DocScaffolder(base_cls):
 
@@ -65,6 +69,12 @@ class Scaffolder:
             self.parameters["src_path"] = pathlib.Path(rel_path).as_posix()
         except ValueError:
           self.parameters["src_path"] = metac_source.as_posix()
+        # The Doxyfile consumes the emitted copies of the doc pages - absolute
+        # paths keep it independent of the working directory Doxygen is invoked
+        # from, which differs between the backends (meson builds run from the
+        # build directory)
+        self.parameters["doc_pages"] = " ".join((target_path / p.name).resolve().as_posix() for p in pages)
+        self.parameters["doc_mainpage"] = (target_path / mainpage.name).resolve().as_posix()
 
         super().generate(target, upgrade=upgrade)
 

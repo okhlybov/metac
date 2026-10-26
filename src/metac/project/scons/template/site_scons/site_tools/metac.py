@@ -1,85 +1,57 @@
 import os
 import sys
-import subprocess
-import SCons.Script
-import SCons.Errors
 
 
-class MetaCModuleResult(list):
+# The tool is a thin shim importing the installed package - the single source
+# of the MetaC SCons logic. The interpreter running SCons is not necessarily
+# the one metac is installed into, so the site-local configuration recording
+# the metac location is consulted first - mirroring what the generator
+# subprocess environment does with the same file
+def _bootstrap_path():
+  try:
+    with open(os.path.join(".metac", "scons.site"), "rt") as io:
+      _vars = {}
+      exec(io.read(), _vars)
+  except OSError:
+    return
+  for entry in str(_vars.get("METAC_PYTHONPATH", "")).split(os.pathsep):
+    if entry and entry not in sys.path:
+      sys.path.append(entry)
 
-  def __init__(self, name, directory, header, sources, objects=None):
-    super().__init__(sources)
-    self.name = name
-    self.directory = directory
-    self.header = header
-    self.sources = sources
-    self.objects = objects or []
 
+# SCons registers the tool module itself under the tool name before executing
+# it, shadowing the real metac package for the duration of the import - the
+# shadow is recognized by carrying this very file and dropped so the genuine
+# package is importable
+_shadow = sys.modules.get("metac")
+if _shadow is not None and getattr(_shadow, "__file__", None) == __file__:
+  del sys.modules["metac"]
 
-def add_metac_module(env, module, directory=".", main_dependency=None, command=None, depends=None):
-  if not main_dependency:
-    main_dependency = os.path.join(directory, f"{module}.py")
-  if depends is None:
-    depends = []
+# The toolpath may sit on sys.path while the tool executes, letting a bare
+# `import metac` resolve to this very shim instead of the package and recurse -
+# the entries pointing into the tool directory are excluded while the package
+# is imported, since the only module needed from there is the running shim
+_here = os.path.dirname(os.path.abspath(__file__))
+_saved_path = sys.path[:]
+sys.path[:] = [p for p in sys.path if not p or os.path.abspath(p) != _here]
+try:
+  try:
+    import metac.scons
+  except ImportError:
+    _bootstrap_path()
+    try:
+      import metac.scons
+    except ImportError as e:
+      raise ImportError(
+        "The MetaC SCons tool requires the metac package to be importable by "
+        "the interpreter running SCons - install metac there or restore the "
+        ".metac/scons.site file which records its location"
+      ) from e
+finally:
+  sys.path[:] = _saved_path
 
-  # Determine code generation mode: AUTO, ON, or OFF
-  metac_mode = env.get("METAC") or SCons.Script.ARGUMENTS.get("METAC") or os.environ.get("METAC")
-  if not metac_mode:
-    metac_mode = "AUTO" if os.path.exists(main_dependency) else "OFF"
-  metac_mode = str(metac_mode).upper()
-
-  module_scons = os.path.join(directory, f"{module}.scons")
-  module_state = os.path.join(directory, ".metac", f"{module}.state")
-  py_exec = env.get("PYTHON", sys.executable)
-  if not command:
-    command = [py_exec, os.path.abspath(main_dependency), module, "--backend=scons"]
-
-  if metac_mode == "OFF":
-    if not os.path.exists(module_scons):
-      raise SCons.Errors.UserError(f"MetaC: Pre-generated file '{module_scons}' not found and METAC code generation is disabled.")
-  elif metac_mode in ("AUTO", "ON"):
-    if not os.path.exists(main_dependency):
-      if metac_mode == "AUTO" and os.path.exists(module_scons):
-        pass
-      else:
-        raise SCons.Errors.UserError(f"MetaC: Generation script '{main_dependency}' not found for module '{module}'.")
-
-    need_gen = (metac_mode == "ON") or (not os.path.exists(module_scons)) or (not os.path.exists(module_state))
-    if not need_gen:
-      state_mtime = os.path.getmtime(module_state)
-      if os.path.getmtime(main_dependency) > state_mtime:
-        need_gen = True
-      else:
-        for dep in depends:
-          if os.path.getmtime(dep) > state_mtime:
-            need_gen = True
-            break
-
-    if need_gen:
-      print(f"-- Generating MetaC module {module}")
-      env_vars = os.environ.copy()
-      metac_pythonpath = env.get("METAC_PYTHONPATH")
-      if metac_pythonpath:
-        env_vars["PYTHONPATH"] = (
-          f"{metac_pythonpath}{os.pathsep}{env_vars['PYTHONPATH']}"
-          if "PYTHONPATH" in env_vars
-          else metac_pythonpath
-        )
-      res = subprocess.run(command, cwd=directory, capture_output=True, text=True, env=env_vars)
-      if res.returncode != 0:
-        raise SCons.Errors.UserError(f"MetaC generator failed for '{module}':\n{res.stderr}\n{res.stdout}")
-
-  loc = {"env": env}
-  with open(module_scons, "r") as f:
-    exec(f.read(), loc)
-  header = loc.get("HEADER")
-  sources = loc.get("SOURCES", [])
-  header_path = os.path.join(directory, header) if directory != "." else header
-  source_paths = [os.path.join(directory, s) if directory != "." else s for s in sources]
-
-  env.AppendUnique(CPPPATH=[directory])
-  objs = env.Object(source_paths) if source_paths else []
-  return MetaCModuleResult(module, directory, header_path, source_paths, objs)
+add_metac_module = metac.scons.add_metac_module
+MetaCModuleResult = metac.scons.MetaCModuleResult
 
 
 def generate(env):

@@ -54,6 +54,14 @@ class _SmartRenderer:
     if not os.path.exists(target):
       os.replace(path, target)
     elif self.module.stateful:
+      # The comparison runs against the state digest rather than the on-disk
+      # contents on purpose: the file may legitimately diverge after generation
+      # (a pretty printer reformats it, for example) and such drift must be
+      # preserved - only a change of the generated contents themselves rewrites
+      # the file. The digest is consulted only while the file exists; a missing
+      # file is the regeneration command by itself and is written unconditionally.
+      # A damaged file, whose contents are disregarded, is recovered by deleting
+      # it - every backend detects the absence and re-runs the generation
       if self.module.digests.get(self.file_name) != self.__digest:
         os.replace(path, target)
       else:
