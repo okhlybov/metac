@@ -28,14 +28,17 @@
     },
     {
       "displayName": "Ninja (Multi-Config)",
-      "name": "ninjamc",
+      "name": "ninja",
       "generator": "Ninja Multi-Config",
-      "inherits": "common"
+      "inherits": "common",
+      "cacheVariables": {
+        "CMAKE_DEFAULT_BUILD_TYPE": "Debug"
+      }
     },
     {
       "displayName": "Visual Studio 2026",
       "name": "vs2026",
-      "generator": "Visual Studio 18",
+      "generator": "Visual Studio 18 2026",
       "inherits": "windows"
     },
     {
@@ -89,16 +92,10 @@
   ],
   "buildPresets": [
     {
-      "displayName": "Ninja Multi-Config Debug",
-      "name": "ninjamc-Debug",
-      "configurePreset": "ninjamc",
+      "displayName": "Ninja (Multi-Config)",
+      "name": "ninja",
+      "configurePreset": "ninja",
       "configuration": "Debug"
-    },
-    {
-      "displayName": "Ninja Multi-Config Release",
-      "name": "ninjamc-Release",
-      "configurePreset": "ninjamc",
-      "configuration": "Release"
     },
     {
       "displayName": "Ninja Debug",
@@ -159,16 +156,10 @@
   ],
   "testPresets": [
     {
-      "displayName": "Ninja Multi-Config Debug",
-      "name": "ninjamc-Debug",
-      "configurePreset": "ninjamc",
+      "displayName": "Ninja (Multi-Config)",
+      "name": "ninja",
+      "configurePreset": "ninja",
       "configuration": "Debug"
-    },
-    {
-      "displayName": "Ninja Multi-Config Release",
-      "name": "ninjamc-Release",
-      "configurePreset": "ninjamc",
-      "configuration": "Release"
     },
     {
       "displayName": "Ninja Debug",
@@ -191,6 +182,18 @@
       "configurePreset": "make-Release"
     },
     {
+      "displayName": "Visual Studio 2026 Debug",
+      "name": "vs2026-Debug",
+      "configurePreset": "vs2026",
+      "configuration": "Debug"
+    },
+    {
+      "displayName": "Visual Studio 2026 Release",
+      "name": "vs2026-Release",
+      "configurePreset": "vs2026",
+      "configuration": "Release"
+    },
+    {
       "displayName": "Visual Studio 2022 Debug",
       "name": "vs2022-Debug",
       "configurePreset": "vs2022",
@@ -200,6 +203,18 @@
       "displayName": "Visual Studio 2022 Release",
       "name": "vs2022-Release",
       "configurePreset": "vs2022",
+      "configuration": "Release"
+    },
+    {
+      "displayName": "Visual Studio 2019 Debug",
+      "name": "vs2019-Debug",
+      "configurePreset": "vs2019",
+      "configuration": "Debug"
+    },
+    {
+      "displayName": "Visual Studio 2019 Release",
+      "name": "vs2019-Release",
+      "configurePreset": "vs2019",
       "configuration": "Release"
     }
   ]
