@@ -96,7 +96,7 @@ jobs:
         run: |
           python -m metac.cmake build/sample_cmake
           cmake --preset ninja-Debug -S build/sample_cmake
-          cmake --build --preset ninja-Debug -S build/sample_cmake
+          cmake --build build/sample_cmake/build/ninja-Debug
           ./build/sample_cmake/build/ninja-Debug/sample_cmake
 
       - name: SCons backend
@@ -108,7 +108,7 @@ jobs:
       - name: Meson backend
         run: |
           python -m metac.meson build/sample_meson
-          meson setup buildir -C build/sample_meson
+          meson setup build/sample_meson/buildir build/sample_meson
           meson compile -C build/sample_meson/buildir
           ./build/sample_meson/buildir/sample_meson
 
@@ -138,7 +138,9 @@ jobs:
       - name: Generate both test suites
         run: |
           python -m metac.test build/gen-main
+          python build/gen-main/test.py
           python -m metac.autotest build/gen-autotest
+          python build/gen-autotest/autotest.py
           test -f build/gen-main/test_auto.h
           test -f build/gen-autotest/autotest_auto.h
 
