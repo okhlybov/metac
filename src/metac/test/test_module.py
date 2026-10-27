@@ -124,13 +124,13 @@ with tempfile.TemporaryDirectory() as tmpdir:
 # Test 8: Stateful mode with .state file
 with tempfile.TemporaryDirectory() as tmpdir:
   prefix = os.path.join(tmpdir, "m")
-  with Module(prefix, source_count=3, stateful=True) as m:
+  with Module(prefix, directory=tmpdir, source_count=3, stateful=True) as m:
     for i in range(3):
       m.add(Code(definitions=f"int s_{i} = {i};"))
   assert sorted(os.listdir(tmpdir)) == [".metac", "m_auto.h", "m_auto1.c", "m_auto2.c", "m_auto3.c"]
   assert os.path.exists(os.path.join(tmpdir, ".metac", "m.state"))
 
-  with Module(prefix, source_count=1, stateful=True) as m:
+  with Module(prefix, directory=tmpdir, source_count=1, stateful=True) as m:
     m.add(Code(definitions="int s = 0;"))
   assert sorted(os.listdir(tmpdir)) == [".metac", "m_auto.c", "m_auto.h"]
   with open(os.path.join(tmpdir, ".metac", "m.state")) as fp:
@@ -158,7 +158,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 # Test 10: Stateless idempotency (stateful=False preserves timestamps on unchanged re-runs)
 with tempfile.TemporaryDirectory() as tmpdir:
   prefix = os.path.join(tmpdir, "m")
-  with Module(prefix, stateful=False) as m:
+  with Module(prefix, directory=tmpdir, stateful=False) as m:
     m.add(Code(definitions="int a = 1;"))
   h_path = os.path.join(tmpdir, "m_auto.h")
   c_path = os.path.join(tmpdir, "m_auto.c")
@@ -167,7 +167,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
   time.sleep(0.05)
 
-  with Module(prefix, stateful=False) as m:
+  with Module(prefix, directory=tmpdir, stateful=False) as m:
     m.add(Code(definitions="int a = 1;"))
   h_mtime2 = os.path.getmtime(h_path)
   c_mtime2 = os.path.getmtime(c_path)
@@ -179,12 +179,30 @@ with tempfile.TemporaryDirectory() as tmpdir:
 # Test 11: Switch from stateful to stateless removes stray .state file
 with tempfile.TemporaryDirectory() as tmpdir:
   prefix = os.path.join(tmpdir, "m")
-  with Module(prefix, stateful=True) as m:
+  with Module(prefix, directory=tmpdir, stateful=True) as m:
     m.add(Code(definitions="int a = 1;"))
   state_path = os.path.join(tmpdir, ".metac", "m.state")
   assert os.path.exists(state_path)
 
-  with Module(prefix, stateful=False) as m:
+  with Module(prefix, directory=tmpdir, stateful=False) as m:
     m.add(Code(definitions="int a = 1;"))
   assert not os.path.exists(state_path), "Stray .state file was not removed when switched to stateful=False!"
+
+# Test 12: Stateful module whose name carries a directory - the state settles
+# under the artifacts directory's .metac with the name preserved verbatim,
+# the very path the cmake and scons backends derive for their staleness checks
+with tempfile.TemporaryDirectory() as tmpdir:
+  prefix = os.path.join(tmpdir, "sub", "nested")
+  os.makedirs(os.path.join(tmpdir, "sub"))
+  with Module(prefix, directory=tmpdir, source_count=2, stateful=True) as m:
+    m.add(Code(definitions="int n = 0;"))
+  assert sorted(os.listdir(os.path.join(tmpdir, "sub"))) == ["nested_auto.h", "nested_auto1.c", "nested_auto2.c"]
+  assert os.path.exists(os.path.join(tmpdir, ".metac", "sub", "nested.state"))
+
+  with Module(prefix, directory=tmpdir, source_count=1, stateful=True) as m:
+    m.add(Code(definitions="int n = 1;"))
+  with open(os.path.join(tmpdir, ".metac", "sub", "nested.state")) as fp:
+    state_content = fp.read()
+  assert "nested_auto.c" in state_content
+  assert "nested_auto1.c" not in state_content
 

@@ -307,9 +307,18 @@ class _State(dict):
 
   @property
   def file_name(self):
-    dirname, basename = os.path.split(self.module.name)
-    state_dir = os.path.join(self.module.directory, dirname, ".metac") if dirname else os.path.join(self.module.directory, ".metac")
-    return os.path.join(state_dir, f"{basename}.state")
+    # The state settles under the artifacts directory's .metac with the module
+    # name preserved verbatim - the very path the cmake and scons backends
+    # derive for their staleness checks, so the three must stay in lockstep.
+    # An absolute name (typically a module script naming itself) is folded to
+    # its form relative to the artifacts directory to keep the prefix intact
+    name = self.module.name
+    if os.path.isabs(name):
+      try:
+        name = os.path.relpath(name, start=self.module.directory)
+      except ValueError: # different drives on Windows - keep the absolute spelling
+        pass
+    return os.path.join(self.module.directory, ".metac", f"{name}.state")
 
   def collect(self):
     self[self.module.header.file_name] = self.module.header.digest

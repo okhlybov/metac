@@ -1,5 +1,6 @@
 # 0.0.2
 
+- Scaffolders upgrade path.
 - Bug fixes.
 - Test matrix additions.
 - CI setup.
