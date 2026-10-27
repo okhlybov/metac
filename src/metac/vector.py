@@ -38,6 +38,16 @@ class Vector(_StructRenderer, Assignable, Sortable, Sequential, Insertable):
   def _element(self, target, index):
     return self.element.variable(f"{self._data(target)}[{index}]")
 
+  # Transfers one element into a freshly allocated buffer during a reallocation:
+  # the movable elements migrate by the O(1) move (a vector of containers hands
+  # over its buffers instead of deep-copying them), the immovable ones by the
+  # copy-destroy pair
+  def _migrate_element(self, destination, source):
+    if self.element.moveable:
+      return f"{self.element.move(self.element.variable(destination), source)};"
+    destroy_source = f"{self.element.destroy(source)};" if self.element.destructible else ""
+    return f"{self.element.copy(self.element.variable(destination), source)}; {destroy_source}"
+
   def _target_size(self, target):
     return f"{target}->size"
 
@@ -216,54 +226,58 @@ class Vector(_StructRenderer, Assignable, Sortable, Sequential, Insertable):
         @param[in] size the new number of elements - the tail is destroyed when shrinking and default-initialized when growing
       """) as m:
       if self.element.zero_initializable:
-        m.code = lambda m: f"""
-          {self.index} index;
-          assert(target);
-          if({m.size} > target->size) {{
-            if({m.size} > target->capacity) {{
-              {Indirection(self.element)} elements;
-              elements = {self.memory.allocate(self.element, m.size, zero=True)};
-              for(index = 0; index < target->size; ++index) {{
-                {self.element.copy(self.element.variable("elements[index]"), target_i)};
-                {destroy_i};
+        def _resize_zero(m):
+          migrate = self._migrate_element("elements[index]", target_i)
+          return f"""
+            {self.index} index;
+            assert(target);
+            if({m.size} > target->size) {{
+              if({m.size} > target->capacity) {{
+                {Indirection(self.element)} elements;
+                elements = {self.memory.allocate(self.element, m.size, zero=True)};
+                for(index = 0; index < target->size; ++index) {{
+                  {migrate}
+                }}
+                {self._free_heap("target")}
+                {self._set_heap("target", "elements", m.size)}
+              }} else {{
+                memset(&({data}[target->size]), 0, ({m.size} - target->size) * sizeof({self.element}));
               }}
-              {self._free_heap("target")}
-              {self._set_heap("target", "elements", m.size)}
             }} else {{
-              memset(&({data}[target->size]), 0, ({m.size} - target->size) * sizeof({self.element}));
-            }}
-          }} else {{
-            for(index = {m.size}; index < target->size; ++index) {{
-              {destroy_i};
-            }}
-          }}
-          target->size = {m.size};
-        """
-      elif self.element.default_constructible:
-        m.code = lambda m: f"""
-          {self.index} index;
-          assert(target);
-          if({m.size} > target->size) {{
-            if({m.size} > target->capacity) {{
-              {Indirection(self.element)} elements;
-              elements = {self.memory.allocate(self.element, m.size)};
-              for(index = 0; index < target->size; ++index) {{
-                {self.element.copy(self.element.variable("elements[index]"), target_i)};
+              for(index = {m.size}; index < target->size; ++index) {{
                 {destroy_i};
               }}
-              {self._free_heap("target")}
-              {self._set_heap("target", "elements", m.size)}
             }}
-            for(index = target->size; index < {m.size}; ++index) {{
-              {self.element.create(target_i)};
+            target->size = {m.size};
+          """
+        m.code = _resize_zero
+      elif self.element.default_constructible:
+        def _resize_construct(m):
+          migrate = self._migrate_element("elements[index]", target_i)
+          return f"""
+            {self.index} index;
+            assert(target);
+            if({m.size} > target->size) {{
+              if({m.size} > target->capacity) {{
+                {Indirection(self.element)} elements;
+                elements = {self.memory.allocate(self.element, m.size)};
+                for(index = 0; index < target->size; ++index) {{
+                  {migrate}
+                }}
+                {self._free_heap("target")}
+                {self._set_heap("target", "elements", m.size)}
+              }}
+              for(index = target->size; index < {m.size}; ++index) {{
+                {self.element.create(target_i)};
+              }}
+            }} else {{
+              for(index = {m.size}; index < target->size; ++index) {{
+                {destroy_i};
+              }}
             }}
-          }} else {{
-            for(index = {m.size}; index < target->size; ++index) {{
-              {destroy_i};
-            }}
-          }}
-          target->size = {m.size};
-        """
+            target->size = {m.size};
+          """
+        m.code = _resize_construct
 
     with self.method(None, "push", {"target": inout(self), "element": self.element}, constraint=lambda: self.element.copyable, brief="Add element to back",
       description="""
@@ -273,23 +287,25 @@ class Vector(_StructRenderer, Assignable, Sortable, Sequential, Insertable):
         @param[in,out] target the vector to add to
         @param[in] element the element to add to the back
       """) as m:
-      m.code = lambda m: f"""
-        assert(target);
-        if(target->size == target->capacity) {{
-          {self.index} index, new_capacity;
-          {Indirection(self.element)} elements;
-          new_capacity = target->capacity == 0 ? 8 : target->capacity * 2;
-          elements = {self.memory.allocate(self.element, "new_capacity")};
-          for(index = 0; index < target->size; ++index) {{
-            {self.element.copy(self.element.variable("elements[index]"), target_i)};
-            {destroy_i};
+      def _push(m):
+        migrate = self._migrate_element("elements[index]", target_i)
+        return f"""
+          assert(target);
+          if(target->size == target->capacity) {{
+            {self.index} index, new_capacity;
+            {Indirection(self.element)} elements;
+            new_capacity = target->capacity == 0 ? 8 : target->capacity * 2;
+            elements = {self.memory.allocate(self.element, "new_capacity")};
+            for(index = 0; index < target->size; ++index) {{
+              {migrate}
+            }}
+            {self._free_heap("target")}
+            {self._set_heap("target", "elements", "new_capacity")}
           }}
-          {self._free_heap("target")}
-          {self._set_heap("target", "elements", "new_capacity")}
-        }}
-        {self.element.copy(self.element.variable(f"{data}[target->size]"), m.element)};
-        ++target->size;
-      """
+          {self.element.copy(self.element.variable(f"{data}[target->size]"), m.element)};
+          ++target->size;
+        """
+      m.code = _push
 
     with self.method(None, ("emplace", "back"), {"target": inout(self)} | self.element.constructor_parameters,
       constraint=lambda: self.element.emplaceable and (self.element.copyable or self.element.moveable), brief="Construct element in-place at back",
@@ -301,11 +317,7 @@ class Vector(_StructRenderer, Assignable, Sortable, Sequential, Insertable):
       """) as m:
       def _emplace_back(m):
         create_args = [getattr(m, name) for name in self.element.constructor_parameters]
-        move_or_copy = (
-          f"{self.element.move(self.element.variable('elements[index]'), target_i)};"
-          if self.element.moveable else
-          f"{self.element.copy(self.element.variable('elements[index]'), target_i)}; {destroy_i};"
-        )
+        migrate = self._migrate_element("elements[index]", target_i)
         return f"""
           assert(target);
           if(target->size == target->capacity) {{
@@ -314,7 +326,7 @@ class Vector(_StructRenderer, Assignable, Sortable, Sequential, Insertable):
             new_capacity = target->capacity == 0 ? 8 : target->capacity * 2;
             elements = {self.memory.allocate(self.element, "new_capacity")};
             for(index = 0; index < target->size; ++index) {{
-              {move_or_copy}
+              {migrate}
             }}
             {self._free_heap("target")}
             {self._set_heap("target", "elements", "new_capacity")}
@@ -385,53 +397,56 @@ class Vector(_StructRenderer, Assignable, Sortable, Sequential, Insertable):
 
         @param[in,out] target the vector to compact
       """) as m:
-      destroy_heap_i = str(self.element.destroy(self.element.variable("heap[index]"))) + ";" if self.element.destructible else str()
       if self.inline_capacity > 0:
-        m.code = lambda m: f"""
-          {self.index} index;
-          assert(target);
-          if(target->capacity > {self.inline_capacity}) {{
-            if(target->size <= {self.inline_capacity}) {{
-              {Indirection(self.element)} heap = target->storage.heap_elements;
-              for(index = 0; index < target->size; ++index) {{
-                {self.element.copy(self.element.variable("target->storage.inline_elements[index]"), self.element.variable("heap[index]"))};
-                {destroy_heap_i}
+        def _compact_inline(m):
+          migrate_heap = self._migrate_element("target->storage.inline_elements[index]", self.element.variable("heap[index]"))
+          migrate = self._migrate_element("elements[index]", target_i)
+          return f"""
+            {self.index} index;
+            assert(target);
+            if(target->capacity > {self.inline_capacity}) {{
+              if(target->size <= {self.inline_capacity}) {{
+                {Indirection(self.element)} heap = target->storage.heap_elements;
+                for(index = 0; index < target->size; ++index) {{
+                  {migrate_heap}
+                }}
+                {self.memory.free("heap")};
+                target->capacity = {self.inline_capacity};
+              }} else if(target->size < target->capacity) {{
+                {Indirection(self.element)} elements = {self.memory.allocate(self.element, "target->size")};
+                for(index = 0; index < target->size; ++index) {{
+                  {migrate}
+                }}
+                {self.memory.free("target->storage.heap_elements")};
+                target->storage.heap_elements = elements;
+                target->capacity = target->size;
               }}
-              {self.memory.free("heap")};
-              target->capacity = {self.inline_capacity};
+            }}
+          """
+        m.code = _compact_inline
+      else:
+        def _compact(m):
+          migrate = self._migrate_element("elements[index]", target_i)
+          return f"""
+            {self.index} index;
+            assert(target);
+            if(target->size == 0) {{
+              if(target->elements) {{
+                {self.memory.free("target->elements")};
+                target->elements = NULL;
+              }}
+              target->capacity = 0;
             }} else if(target->size < target->capacity) {{
               {Indirection(self.element)} elements = {self.memory.allocate(self.element, "target->size")};
               for(index = 0; index < target->size; ++index) {{
-                {self.element.copy(self.element.variable("elements[index]"), target_i)};
-                {destroy_i};
+                {migrate}
               }}
-              {self.memory.free("target->storage.heap_elements")};
-              target->storage.heap_elements = elements;
+              {self.memory.free("target->elements")};
+              target->elements = elements;
               target->capacity = target->size;
             }}
-          }}
-        """
-      else:
-        m.code = lambda m: f"""
-          {self.index} index;
-          assert(target);
-          if(target->size == 0) {{
-            if(target->elements) {{
-              {self.memory.free("target->elements")};
-              target->elements = NULL;
-            }}
-            target->capacity = 0;
-          }} else if(target->size < target->capacity) {{
-            {Indirection(self.element)} elements = {self.memory.allocate(self.element, "target->size")};
-            for(index = 0; index < target->size; ++index) {{
-              {self.element.copy(self.element.variable("elements[index]"), target_i)};
-              {destroy_i};
-            }}
-            {self.memory.free("target->elements")};
-            target->elements = elements;
-            target->capacity = target->size;
-          }}
-        """
+          """
+        m.code = _compact
 
     with self.create as m:
       if self.inline_capacity > 0:
@@ -612,12 +627,14 @@ class Range(_Range, DirectAccess):
     with self.get as m:
       m.inline_code = lambda: f"""
       assert(target);
+      assert(index < target->back - target->front);
       return {self.iterable.get("target->iterable", "target->front + index")};
     """
 
     with self.view as m:
       m.inline_code = lambda: f"""
         assert(target);
+        assert(index < target->back - target->front);
         return {self.iterable.view("target->iterable", "target->front + index")};
       """
 

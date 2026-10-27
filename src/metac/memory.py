@@ -6,12 +6,14 @@ from metac.module import Code
 
 
 _allocate_code = Code(
-  dependencies=(std.stdlib_h, std.assert_h, metac.core._linkage_code),
+  dependencies=(std.stdlib_h, std.assert_h, std.stdint_h, metac.core._linkage_code),
   interface="""
     /** @private */
     METAC_EXTERN void* _metac_malloc(size_t size);
     /** @private */
     METAC_EXTERN void* _metac_calloc(size_t count, size_t size);
+    /** @private */
+    METAC_EXTERN void* _metac_malloc_array(size_t count, size_t size);
   """,
   implementation="""
     void* _metac_malloc(size_t size) {
@@ -29,6 +31,16 @@ _allocate_code = Code(
         abort();
       }
       return ptr;
+    }
+    void* _metac_malloc_array(size_t count, size_t size) {
+      /* calloc() rejects the wrapping product itself - the plain malloc path must
+         check the multiplication before performing it, else a huge count wraps
+         around to a small allocation and overflows it at first write */
+      if(size != 0 && count > SIZE_MAX / size) {
+        assert(0 && "allocation size overflow");
+        abort();
+      }
+      return _metac_malloc(count * size);
     }
   """
 )
@@ -51,7 +63,7 @@ class Manager(Code):
     if zero:
       code = f"_metac_calloc({count}, {size})"
     else:
-      code = f"_metac_malloc({size})" if count == 1 else f"_metac_malloc({count}*{size})"
+      code = f"_metac_malloc({size})" if count == 1 else f"_metac_malloc_array({count}, {size})"
     if not cast and type:
       cast = type
     return f"({cast}*){code}" if cast else code

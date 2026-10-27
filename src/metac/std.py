@@ -14,6 +14,7 @@ string_h = SystemHeader("string.h")
 stdbool_h = SystemHeader("stdbool.h")
 complex_h = SystemHeader("complex.h")
 inttypes_h = SystemHeader("inttypes.h")
+stdint_h = SystemHeader("stdint.h")
 stdarg_h = SystemHeader("stdarg.h")
 
 

@@ -44,7 +44,11 @@ def _value(obj):
     case Value(): return obj
     case int(): return Literal("int", obj)
     case float(): return Literal("double", obj)
-    case str(): return Literal("int", obj) # FIXME actually this should be borrowing the target's type
+    # A raw string is the escape hatch for hand-written expressions: the contents
+    # are emitted verbatim and the declared type is never consulted, so the author
+    # takes full responsibility for matching the expected indirection (&-addressing
+    # included) - this is intentional, do not type-check it against the target
+    case str(): return Literal("int", obj)
   raise TypeError(f"{obj} is not convertible to Value")
 
 
@@ -751,10 +755,12 @@ class Primitive(_Named, _Traitful):
 
   def __setup__(self):
     super().__setup__()
-    self.macro_from("create", lambda target: f"{target} = 0")
-    self.macro_from("copy", lambda target, source: f"{target} = {source}")
-    self.macro_from("move", lambda target, source: f"{target} = {source}")
-    self.macro_from("swap", lambda left, right: f"{{ {self} _ = {left}; {left} = {right}; {right} = _; }}")
+    self.macro_from("create", lambda target: f"({target}) = 0")
+    self.macro_from("copy", lambda target, source: f"({target}) = ({source})")
+    self.macro_from("move", lambda target, source: f"({target}) = ({source})")
+    # The temporary follows the composite swap's `temp` spelling - a bare `_` would
+    # collide with an argument that happens to carry the same name
+    self.macro_from("swap", lambda left, right: f"{{ {self} _primitive_temporary = {left}; ({left}) = ({right}); ({right}) = (_primitive_temporary); }}")
     self.macro_from("equal", lambda left, right: f"({left} == {right})")
     self.macro_from("compare", lambda left, right: f"({left} == {right} ? 0 : ({left} < {right} ? -1 : +1))")
     self.macro_from("hash", lambda target: f"(size_t)({target})")

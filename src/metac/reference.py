@@ -138,6 +138,15 @@ class Counted(_StructRenderer, _Reference):
   def __setup__(self):
     super().__setup__()
 
+    self.description = """
+      Reference counted shared instance proxy type: each reference is a cheap handle and the
+      referenced instance lives until the last reference to it is released.
+      The counter is a plain non-atomic unsigned integer - like std::rc::Rc, NOT the atomic
+      std::sync::Arc - so a counted instance and its references must be confined to a single
+      thread (or externally synchronized): sharing them across threads without such
+      synchronization races on the count and can free the instance twice.
+    """
+
     self.new.brief = "Create reference owning a new reference-counted instance"
     self.new.description = """
       Allocates a new instance of the referenced type with an associated reference counter,
@@ -209,8 +218,4 @@ class Counted(_StructRenderer, _Reference):
         {self.type} value;
         unsigned count;
       }} {self._layout};
-    """)
-
-
-# Backward compatibility alias
-Arc = Counted      
+    """)    

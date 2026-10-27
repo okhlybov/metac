@@ -151,13 +151,13 @@ y.unit(f"{cstr.create}(): empty state is the NULL sentinel", f"""
 y.unit(f"{cstr.set}(): engage with an owning value", f"""
   {cstr.set(c, s("hello"))};
   TEST_TRUE( {cstr.primed(c)} );
-  TEST_EQUAL_CHARS( {cstr.value(c)}, {s("hello")} );
+  {{ char* v = {cstr.value(c)}; TEST_EQUAL_CHARS( v, {s("hello")} ); cstring_free(v); }}
 """)
 
 y.unit(f"{cstr.set}(): overwrite releases the previous value", f"""
   {cstr.set(c, s("one"))};
   {cstr.set(c, s("two"))};
-  TEST_EQUAL_CHARS( {cstr.value(c)}, {s("two")} );
+  {{ char* v = {cstr.value(c)}; TEST_EQUAL_CHARS( v, {s("two")} ); cstring_free(v); }}
 """)
 
 y.unit(f"{cstr.reset}(): release the value back to NULL", f"""

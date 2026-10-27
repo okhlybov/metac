@@ -33,8 +33,8 @@ x_vec.unit(f"{vec_type.emplace_back}(): emplace with constructor parameter forwa
   {vec_type.emplace_back(vt, 42)};
   {vec_type.emplace_back(vt, 99)};
   TEST_EQUAL({vec_type.size(vt)}, 2);
-  TEST_EQUAL(*{vec_type.get(vt, 0)}.value, 42);
-  TEST_EQUAL(*{vec_type.get(vt, 1)}.value, 99);
+  {{ custom_elem g = {vec_type.get(vt, 0)}; TEST_EQUAL(*g.value, 42); {custom_elem.destroy("&g")}; }}
+  {{ custom_elem g = {vec_type.get(vt, 1)}; TEST_EQUAL(*g.value, 99); {custom_elem.destroy("&g")}; }}
 """)
 
 
@@ -102,8 +102,8 @@ x_fm.unit(f"{fm_type.emplace}(): emplace into flat map forwarding value params",
   TEST_EQUAL(res2, 1);
   TEST_EQUAL(res3, 0);
   TEST_EQUAL({fm_type.size(fmt)}, 2);
-  TEST_EQUAL(*{fm_type.get(fmt, 1)}.value, 111);
-  TEST_EQUAL(*{fm_type.get(fmt, 2)}.value, 222);
+  {{ custom_elem g = {fm_type.get(fmt, 1)}; TEST_EQUAL(*g.value, 111); {custom_elem.destroy("&g")}; }}
+  {{ custom_elem g = {fm_type.get(fmt, 2)}; TEST_EQUAL(*g.value, 222); {custom_elem.destroy("&g")}; }}
 """)
 
 

@@ -19,8 +19,11 @@ class Assignable(Indexable):
         or replacing the contents of the element already held at the index in place.
         The cost matches the underlying implementation: expected O(1) for hash-based and direct-indexed
         containers, expected O(log n) for tree-based containers.
+        The previously held element is destroyed before the new one is copied in, so the
+        element must not alias the storage being replaced - passing a view into the very
+        entry being overwritten (e.g. set(t, i, view(t, i))) reads destroyed storage.
 
         @param[in,out] target the collection to update
         @param[in] index the index to assign the element at
-        @param[in] element the element to store - the element previously held at the index is destroyed
+        @param[in] element the element to store - the element previously held at the index is destroyed; must not alias that entry
       """)
