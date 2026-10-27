@@ -130,10 +130,17 @@ class Ctx:
     tail = f"{self.destruct()}; {self.locs_free(nlocs)}"
     self.x.unit(tag, f"{head};\n{construct};\n{body}\n{tail}\n")
 
-  def value_unit(self, tag, body, nlocs=0):
-    # like unit() but for units managing both t and t2
-    c1, c2 = self.construct(), self.construct(self.t2)
-    if c1 is None or c2 is None:
+  def value_unit(self, tag, body, nlocs=0, raw=False):
+    # like unit() but for units managing both t and t2; raw units leave t2
+    # uninitialized for the body's create-style copy/move to construct - per
+    # the value protocol the operations demand pristine target storage, so
+    # constructing t2 up front would overwrite its held resources (the dynamic
+    # circular buffer, whose create allocates, actually leaks them)
+    c1 = self.construct()
+    if c1 is None:
+      return
+    c2 = str() if raw else self.construct(self.t2)
+    if not raw and c2 is None:
       return
     head = f"{self.t.definition}; {self.t2.definition}; {self.locs(nlocs)}"
     tail = f"{self.destruct()}; {self.destruct(self.t2)}; {self.locs_free(nlocs)}"
@@ -166,13 +173,13 @@ def emit_value(ctx):
     if active(T, "equal") and not identity:
       body.append(ctx.fill(2))
       body.append(f"TEST_FALSE({ctx.call('equal', ctx.t, ctx.t2)});")
-    ctx.value_unit("copy(): replicate contents", "\n".join(body), nlocs=3)
+    ctx.value_unit("copy(): replicate contents", "\n".join(body), nlocs=3, raw=True)
 
   if can_fill and active(T, "move"):
     body = [ctx.fill(0), ctx.fill(1), f"{T.move(ctx.t2, ctx.t)};",
             f"TEST_TRUE({ctx.call('empty', ctx.t)});",
             f"TEST_EQUAL({ctx.call('size', ctx.t2)}, 2);"]
-    ctx.value_unit("move(): transfer ownership leaving empty source", "\n".join(body), nlocs=2)
+    ctx.value_unit("move(): transfer ownership leaving empty source", "\n".join(body), nlocs=2, raw=True)
 
   if can_fill and active(T, "swap") and active(T, "size"):
     body = [ctx.fill(0), ctx.fill(1), f"{T.swap(ctx.t, ctx.t2)};",
@@ -183,7 +190,7 @@ def emit_value(ctx):
   if can_fill and active(T, "hash") and active(T, "equal") and not identity:
     body = [ctx.fill(0), ctx.fill(1), f"{T.copy(ctx.t2, ctx.t)};",
             f"TEST_EQUAL({ctx.call('hash', ctx.t)}, {ctx.call('hash', ctx.t2)});"]
-    ctx.value_unit("hash(): equal values hash equally", "\n".join(body), nlocs=2)
+    ctx.value_unit("hash(): equal values hash equally", "\n".join(body), nlocs=2, raw=True)
 
   if can_fill and active(T, "compare") and not identity:
     body = [ctx.fill(0), ctx.fill(1), ctx.fill(1, ctx.t2), ctx.fill(2, ctx.t2),
