@@ -101,10 +101,10 @@ class Option(Composite):
 
     if element.comparable:
       with self.equal as m:
-        state_diff = [f"if(({self._is(s)(f"(*left)")}) != ({self._is(s)(f"(*right)")})) return 0;" for s in self.sentinel_states]
+        state_diff = [f"if(({self._is(s)('(*left)')}) != ({self._is(s)('(*right)')})) return 0;" for s in self.sentinel_states]
         m.inline_code = [f"assert(left);", f"assert(right);", *state_diff,
-                         f"if(!{self._engaged("(*left)")}) return 1;",
-                         f"return {element.equal(self._slot_var("(*left)"), self._slot_var("(*right)"))};"]
+                         f"if(!{self._engaged('(*left)')}) return 1;",
+                         f"return {element.equal(self._slot_var('(*left)'), self._slot_var('(*right)'))};"]
 
     if element.orderable:
       with self.compare as m:
@@ -114,12 +114,12 @@ class Option(Composite):
           chain = [f"({self._is(0)(e)}) ? 0 : "]
           for rank, s in enumerate(user_states, start=2):
             chain.append(f"({self._is(s)(e)}) ? {rank} : ")
-          return f"({"".join(chain)}1)"
+          return f"({''.join(chain)}1)"
         m.inline_code = [f"assert(left);", f"assert(right);",
-                         f"int l = {side("(*left)")}, r = {side("(*right)")};",
+                         f"int l = {side('(*left)')}, r = {side('(*right)')};",
                          f"if(l != r) return l < r ? -1 : +1;",
                          f"if(l != 1) return 0;",
-                         f"return {element.compare(self._slot_var("(*left)"), self._slot_var("(*right)"))};"]
+                         f"return {element.compare(self._slot_var('(*left)'), self._slot_var('(*right)'))};"]
 
     if element.hashable:
       with self.hash as m:
@@ -127,7 +127,7 @@ class Option(Composite):
         m.inline_code = [f"{state.definition}; size_t result;",
                          f"assert(target);",
                          f"{self.hasher.create(state)};",
-                         f"{self.hasher.update(state, f"(size_t)({self._state_chain(e)})")};",
+                         f"{self.hasher.update(state, f'(size_t)({self._state_chain(e)})')};",
                          f"if({self._engaged(e)}) {self.hasher.update(state, element.hash(self._slot_var(e)))};",
                          f"result = {self.hasher.hash(state)};",
                          f"{self.hasher.destroy(state)};",
@@ -291,12 +291,12 @@ class Option(Composite):
     marks = [f"if({self._is(s)(source_e)}) {{{self._mark(s)(target_e)};}}" for s in self.sentinel_states]
     engaged_mark = self._mark(self.engaged_state)(target_e)
     else_clause = f" else {{{engaged_mark};}}" if engaged_mark else ""
-    return f"{" ".join(marks)}{else_clause}"
+    return f"{' '.join(marks)}{else_clause}"
 
   # Renders the state index of the storage as a C expression
   def _state_chain(self, e):
     chain = [f"{self._is(s)(e)} ? {s} : " for s in self.sentinel_states]
-    return f"({"".join(chain)}{self.engaged_state})"
+    return f"({''.join(chain)}{self.engaged_state})"
 
   def _slot_var(self, e):
     return self.element.variable(self._slot(e))
