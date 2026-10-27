@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "metac"
-version = "0.0.1"
+version = "0.0.2"
 description = "C metaprogramming & code generation package"
 readme = "README.md"
 authors = [{name = "Oleg A. Khlybov", email = "fougas@mail.ru"}]
