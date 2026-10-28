@@ -307,3 +307,17 @@ x.unit(f"{type.put}()/{type.remove}(): container protocol addition and removal",
   TEST_TRUE( {type.empty(t)} );
   TEST_FALSE( {type.remove(t, 30)} );
 """)
+
+x.unit(f"{type.front}(), {type.back}(), {type.clear}(): element access and clear", f"""
+  {type.push(t, 100)};
+  {type.push(t, 200)};
+  {type.push(t, 300)};
+  TEST_EQUAL( {type.front(t)}, 100 );
+  TEST_EQUAL( *{type.front_view(t)}, 100 );
+  TEST_EQUAL( {type.back(t)}, 300 );
+  TEST_EQUAL( *{type.back_view(t)}, 300 );
+
+  {type.clear(t)};
+  TEST_TRUE( {type.empty(t)} );
+  TEST_EQUAL( {type.size(t)}, 0 );
+""")

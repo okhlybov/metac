@@ -170,3 +170,71 @@ y.unit(f"{dtype.copy}(), {dtype.move}(): dynamic buffer copy and move with cstri
   TEST_EQUAL_CHARS( {dtype.back_view(dt2)}, {s("second")} );
   {dtype.destroy(dt2)};
 """)
+
+x.unit(f"{type.push}(), {type.push_front}(), {type.set}(): self-aliasing rotations and assign", f"""
+  /* push on full with front_view rotates oldest to back */
+  {type.push(t, s("a"))};
+  {type.push(t, s("b"))};
+  {type.push(t, s("c"))};
+  TEST_TRUE( {type.full(t)} );
+  {type.push(t, type.front_view(t))};
+  TEST_TRUE( {type.full(t)} );
+  TEST_EQUAL_CHARS( {type.front_view(t)}, {s("b")} );
+  TEST_EQUAL_CHARS( {type.back_view(t)}, {s("a")} );
+
+  /* push_front on full with back_view rotates back to front */
+  {type.push_front(t, type.back_view(t))};
+  TEST_TRUE( {type.full(t)} );
+  TEST_EQUAL_CHARS( {type.front_view(t)}, {s("a")} );
+  TEST_EQUAL_CHARS( {type.back_view(t)}, {s("c")} );
+
+  /* set self-assignment */
+  {type.set(t, 0, type.view(t, 0))};
+  TEST_EQUAL_CHARS( {type.view(t, 0)}, {s("a")} );
+""")
+
+x.unit(f"{type.swap}(): swap buffers of different sizes", f"""
+  {t2.definition};
+  {type.create(t2)};
+  {type.push(t, s("one"))};
+  {type.push(t, s("two"))};
+  {type.push(t2, s("only"))};
+  {type.swap(t, t2)};
+  TEST_EQUAL( {type.size(t)}, 1 );
+  TEST_EQUAL_CHARS( {type.front_view(t)}, {s("only")} );
+  TEST_EQUAL( {type.size(t2)}, 2 );
+  TEST_EQUAL_CHARS( {type.front_view(t2)}, {s("one")} );
+  TEST_EQUAL_CHARS( {type.back_view(t2)}, {s("two")} );
+  {type.destroy(t2)};
+""")
+
+x.unit(f"{type.move}(): static buffer move", f"""
+  {t2.definition};
+  {type.push(t, s("item1"))};
+  {type.push(t, s("item2"))};
+  {type.move(t2, t)};
+  TEST_TRUE( {type.empty(t)} );
+  TEST_EQUAL( {type.size(t2)}, 2 );
+  TEST_EQUAL_CHARS( {type.front_view(t2)}, {s("item1")} );
+  TEST_EQUAL_CHARS( {type.back_view(t2)}, {s("item2")} );
+  {type.destroy(t2)};
+""")
+
+y.unit(f"{dtype.push}(), {dtype.push_front}(), {dtype.set}(): dynamic self-aliasing", f"""
+  {dtype.push(dt, s("d1"))};
+  {dtype.push(dt, s("d2"))};
+  {dtype.push(dt, s("d3"))};
+  TEST_TRUE( {dtype.full(dt)} );
+  {dtype.push(dt, dtype.front_view(dt))};
+  TEST_TRUE( {dtype.full(dt)} );
+  TEST_EQUAL_CHARS( {dtype.front_view(dt)}, {s("d2")} );
+  TEST_EQUAL_CHARS( {dtype.back_view(dt)}, {s("d1")} );
+
+  {dtype.push_front(dt, dtype.back_view(dt))};
+  TEST_TRUE( {dtype.full(dt)} );
+  TEST_EQUAL_CHARS( {dtype.front_view(dt)}, {s("d1")} );
+  TEST_EQUAL_CHARS( {dtype.back_view(dt)}, {s("d3")} );
+
+  {dtype.set(dt, 0, dtype.view(dt, 0))};
+  TEST_EQUAL_CHARS( {dtype.view(dt, 0)}, {s("d1")} );
+""")

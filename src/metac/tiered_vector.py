@@ -5,7 +5,7 @@ from metac.range import DirectAccess
 from metac.sequential import Sequential
 from metac.insertable import Insertable
 from metac.container import _Range
-from metac.core import inout, out, Indirection, _StructRenderer, Callable
+from metac.core import inout, out, Indirection, _StructRenderer, Callable, Composite, Primitive
 
 
 #
@@ -289,15 +289,27 @@ class Vector(_StructRenderer, Assignable, Sortable, Sequential, Insertable):
         return {self.element.variable(f"target->chunks[{m.index} >> {self.chunk_shift}][{m.index} & {self.chunk_mask}]").bind(m.result)};
       """
 
-    destroy_i = str(self.element.destroy(self.element.variable(f"target->chunks[index >> {self.chunk_shift}][index & {self.chunk_mask}]"))) + ";" if self.element.destructible else str()
+    self_aliasing = isinstance(self.element, Composite) and not isinstance(self.element, Primitive)
 
     with self.set as m:
-      m.inline_code = lambda m: f"""
-        assert(target);
-        assert({self.indexed(m.target, m.index)});
-        {destroy_i}
-        {self.element.copy(self.element.variable(f"target->chunks[{m.index} >> {self.chunk_shift}][{m.index} & {self.chunk_mask}]"), m.element)};
-      """
+      def _set_code(m):
+        slot = f"target->chunks[{m.index} >> {self.chunk_shift}][{m.index} & {self.chunk_mask}]"
+        destroy_slot = f"{self.element.destroy(self.element.variable(slot))};" if self.element.destructible else ""
+        body = f"""
+          {destroy_slot}
+          {self.element.copy(self.element.variable(slot), m.element)};
+        """
+        if self_aliasing:
+          alias_check = f"({slot}) != {m.element}" if isinstance(self.element, Indirection) else f"&{slot} != {m.element}"
+          body = f"""
+            if({alias_check}) {{{body}}}
+          """
+        return f"""
+          assert(target);
+          assert({self.indexed(m.target, m.index)});
+          {body}
+        """
+      m.inline_code = _set_code
 
     with self.method(None, ("create", "size"), {"target": out(self), "size": self.index}, constraint=lambda: self.element.default_constructible or self.element.zero_initializable, brief="Create the vector with room for the given number of default-constructed elements",
       description="""
@@ -340,14 +352,24 @@ class Vector(_StructRenderer, Assignable, Sortable, Sequential, Insertable):
 
     with self.copy as m:
       m.code = lambda m: f"""
-        size_t index;
+        size_t index, needed;
         assert(target);
         assert(source);
-        {self.create(m.target)};
-        for(index = 0; index < source->size; ++index) {{
-          {self.extend(m.target)};
-          {self.element.copy(self.element.variable(f"target->chunks[target->size >> {self.chunk_shift}][target->size & {self.chunk_mask}]"), self.element.variable(f"source->chunks[index >> {self.chunk_shift}][index & {self.chunk_mask}]"))};
-          ++target->size;
+        if(target == source) return;
+        if(source->size > 0) {{
+          needed = (source->size + {self.chunk_mask}) >> {self.chunk_shift};
+          target->chunks = {self.memory.allocate(self._chunk_p, "needed")};
+          target->chunk_capacity = needed;
+          for(index = 0; index < needed; ++index) {{
+            target->chunks[index] = {self.memory.allocate(self.element, f"{1 << self.chunk_shift}")};
+          }}
+          target->chunk_count = needed;
+          for(index = 0; index < source->size; ++index) {{
+            {self.element.copy(self.element.variable(f"target->chunks[index >> {self.chunk_shift}][index & {self.chunk_mask}]"), self.element.variable(f"source->chunks[index >> {self.chunk_shift}][index & {self.chunk_mask}]"))};
+          }}
+          target->size = source->size;
+        }} else {{
+          {self.create(m.target)};
         }}
       """
 
@@ -361,6 +383,96 @@ class Vector(_StructRenderer, Assignable, Sortable, Sequential, Insertable):
         target->size = source->size;
         {self.create(m.source)};
       """
+    with self.method(None, "clear", {"target": inout(self)}, brief="Clear all elements from the vector",
+      description="""
+        Destroys all elements currently held by the vector, releases the allocated chunks,
+        and resets it to the empty state.
+
+        @param[in,out] target the vector to clear
+      """) as m:
+      destroy_elements = f"""
+        for(index = 0; index < target->size; ++index) {{
+          {self.element.destroy(self.element.variable(f"target->chunks[index >> {self.chunk_shift}][index & {self.chunk_mask}]"))};
+        }}
+      """ if self.element.destructible else ""
+      m.code = f"""
+        size_t index;
+        assert(target);
+        if(target->chunks) {{
+          {destroy_elements}
+          for(index = 0; index < target->chunk_count; ++index) {{
+            {self.memory.free("target->chunks[index]")};
+          }}
+          {self.memory.free("target->chunks")};
+          target->chunks = NULL;
+          target->chunk_count = 0;
+          target->chunk_capacity = 0;
+          target->size = 0;
+        }}
+      """
+
+    with self.method(self.element, "front", {"target": self}, constraint=lambda: self.element.copyable,
+      references=(self.get,),
+      brief="Get a copy of the front element",
+      description="""
+        Returns a copy of the first element in the vector. The vector must not be empty.
+
+        @param[in] target the vector to read from
+        @return a copy of the first element
+      """) as m:
+      m.inline_code = lambda m: f"""
+        assert(target);
+        assert(!{self.empty(m.target)});
+        return {self.get(m.target, 0)};
+      """
+
+    with self.method(self.element.view_type, ("front", "view"), {"target": self},
+      references=(self.view,),
+      brief="Get a constant view of the front element",
+      description="""
+        Returns a constant view of the first element in the vector without copying it.
+        The vector must not be empty.
+
+        @param[in] target the vector to read from
+        @return a constant view of the first element
+      """) as m:
+      m.inline_code = f"""
+        assert(target);
+        assert(!{self.empty(m.target)});
+        return {self.view(m.target, 0)};
+      """
+
+    with self.method(self.element, "back", {"target": self}, constraint=lambda: self.element.copyable,
+      references=(self.get,),
+      brief="Get a copy of the back element",
+      description="""
+        Returns a copy of the last element in the vector. The vector must not be empty.
+
+        @param[in] target the vector to read from
+        @return a copy of the last element
+      """) as m:
+      m.inline_code = lambda m: f"""
+        assert(target);
+        assert(!{self.empty(m.target)});
+        return {self.get(m.target, "target->size - 1")};
+      """
+
+    with self.method(self.element.view_type, ("back", "view"), {"target": self},
+      references=(self.view,),
+      brief="Get a constant view of the back element",
+      description="""
+        Returns a constant view of the last element in the vector without copying it.
+        The vector must not be empty.
+
+        @param[in] target the vector to read from
+        @return a constant view of the last element
+      """) as m:
+      m.inline_code = f"""
+        assert(target);
+        assert(!{self.empty(m.target)});
+        return {self.view(m.target, "target->size - 1")};
+      """
+
 
 
 

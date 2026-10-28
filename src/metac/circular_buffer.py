@@ -5,7 +5,7 @@ from metac.sequential import Sequential
 from metac.insertable import Insertable
 from metac.range import DirectAccess
 from metac.container import _Range
-from metac.core import out, inout, Callable, Indirection, Macro, _StructRenderer
+from metac.core import out, inout, Callable, Indirection, Macro, _StructRenderer, Composite, Primitive
 
 
 # Common base class for circular ring buffer containers
@@ -116,15 +116,29 @@ class _CircularBuffer(_StructRenderer, Assignable, Sortable, Sequential, Inserta
         return {slot.bind(m.result)};
       """
 
+    self_aliasing = isinstance(self.element, Composite) and not isinstance(self.element, Primitive)
+
     with self.set as m:
-      slot = self.element.variable(f"target->elements[(target->head + ({m.index})) % {self._capacity('target')}]")
-      destroy_slot = f"{self.element.destroy(slot)};" if self.element.destructible else ""
-      m.inline_code = lambda m: f"""
-        assert(target);
-        assert({self.indexed(m.target, m.index)});
-        {destroy_slot}
-        {self.element.copy(slot, m.element)};
-      """
+      def _set_code(m):
+        cap = self._capacity("target")
+        slot_expr = f"target->elements[(target->head + ({m.index})) % {cap}]"
+        slot = self.element.variable(slot_expr)
+        destroy_slot = f"{self.element.destroy(slot)};" if self.element.destructible else ""
+        body = f"""
+          {destroy_slot}
+          {self.element.copy(slot, m.element)};
+        """
+        if self_aliasing:
+          alias_check = f"({slot_expr}) != {m.element}" if isinstance(self.element, Indirection) else f"&{slot_expr} != {m.element}"
+          body = f"""
+            if({alias_check}) {{{body}}}
+          """
+        return f"""
+          assert(target);
+          assert({self.indexed(m.target, m.index)});
+          {body}
+        """
+      m.inline_code = _set_code
 
     with self.method(self.element, "front", {"target": self}, constraint=lambda: self.element.copyable,
       references=(self.get,),
@@ -202,18 +216,33 @@ class _CircularBuffer(_StructRenderer, Assignable, Sortable, Sequential, Inserta
       head_slot = self.element.variable("target->elements[target->head]")
       destroy_head = f"{self.element.destroy(head_slot)};" if self.element.destructible else ""
       new_slot = self.element.variable(f"target->elements[(target->head + target->size) % {self._capacity('target')}]")
-      m.code = lambda m: f"""
-        assert(target);
-        assert({self._capacity("target")} > 0);
-        if(target->size == {self._capacity("target")}) {{
+      def _push_code(m):
+        cap = self._capacity("target")
+        overwrite_body = f"""
           {destroy_head}
           {self.element.copy(head_slot, m.element)};
-          target->head = (target->head + 1) % {self._capacity("target")};
-        }} else {{
-          {self.element.copy(new_slot, m.element)};
-          ++target->size;
-        }}
-      """
+          target->head = (target->head + 1) % {cap};
+        """
+        if self_aliasing:
+          alias_equal = f"target->elements[target->head] == {m.element}" if isinstance(self.element, Indirection) else f"&target->elements[target->head] == {m.element}"
+          overwrite_body = f"""
+            if({alias_equal}) {{
+              target->head = (target->head + 1) % {cap};
+            }} else {{
+              {overwrite_body}
+            }}
+          """
+        return f"""
+          assert(target);
+          assert({cap} > 0);
+          if(target->size == {cap}) {{
+            {overwrite_body}
+          }} else {{
+            {self.element.copy(new_slot, m.element)};
+            ++target->size;
+          }}
+        """
+      m.code = _push_code
 
     with self.method(None, ("push", "back"), {"target": inout(self), "element": self.element}, constraint=lambda: self.element.copyable,
       references=(self.push,),
@@ -240,20 +269,33 @@ class _CircularBuffer(_StructRenderer, Assignable, Sortable, Sequential, Inserta
       """) as m:
       new_head_slot = self.element.variable("target->elements[new_head]")
       destroy_new_head = f"{self.element.destroy(new_head_slot)};" if self.element.destructible else ""
-      m.code = lambda m: f"""
-        size_t new_head;
-        assert(target);
-        assert({self._capacity("target")} > 0);
-        new_head = (target->head + {self._capacity("target")} - 1) % {self._capacity("target")};
-        if(target->size == {self._capacity("target")}) {{
+      def _push_front_code(m):
+        cap = self._capacity("target")
+        overwrite_body = f"""
           {destroy_new_head}
           {self.element.copy(new_head_slot, m.element)};
-        }} else {{
-          {self.element.copy(new_head_slot, m.element)};
-          ++target->size;
-        }}
-        target->head = new_head;
-      """
+        """
+        if self_aliasing:
+          alias_check = f"target->elements[new_head] != {m.element}" if isinstance(self.element, Indirection) else f"&target->elements[new_head] != {m.element}"
+          overwrite_body = f"""
+            if({alias_check}) {{
+              {overwrite_body}
+            }}
+          """
+        return f"""
+          size_t new_head;
+          assert(target);
+          assert({cap} > 0);
+          new_head = (target->head + {cap} - 1) % {cap};
+          if(target->size == {cap}) {{
+            {overwrite_body}
+          }} else {{
+            {self.element.copy(new_head_slot, m.element)};
+            ++target->size;
+          }}
+          target->head = new_head;
+        """
+      m.code = _push_front_code
 
     with self.method(None, ("emplace", "back"), {"target": inout(self)} | self.element.constructor_parameters,
       constraint=lambda: self.element.emplaceable, brief="Construct element in-place at back",
@@ -507,32 +549,34 @@ class Static(_CircularBuffer):
       target_i = self.element.variable("target->elements[index]")
       source_i = self.element.variable(f"source->elements[(source->head + index) % {self._fixed_capacity}]")
       destroy_src = f"{self.element.destroy(source_i)};" if self.element.destructible else ""
+      transfer_element = (
+        f"{self.element.move(target_i, source_i)};"
+        if self.element.moveable else
+        f"{self.element.copy(target_i, source_i)}; {destroy_src}"
+      )
       m.code = lambda m: f"""
         size_t index;
         assert(target);
         assert(source);
+        if(target == source) return;
         target->head = 0;
         target->size = source->size;
         for(index = 0; index < source->size; ++index) {{
-          {self.element.copy(target_i, source_i)};
-          {destroy_src}
+          {transfer_element}
         }}
         source->head = 0;
         source->size = 0;
       """
 
     with self.swap as m:
-      left_i = self.element.variable("left->elements[index]")
-      right_i = self.element.variable("right->elements[index]")
       m.code = f"""
-        size_t index, temp_head, temp_size;
+        {self.name} temp;
         assert(left);
         assert(right);
-        temp_head = left->head; left->head = right->head; right->head = temp_head;
-        temp_size = left->size; left->size = right->size; right->size = temp_size;
-        for(index = 0; index < {self._fixed_capacity}; ++index) {{
-          {self.element.swap(left_i, right_i)};
-        }}
+        if(left == right) return;
+        temp = *left;
+        *left = *right;
+        *right = temp;
       """
 
 
@@ -709,9 +753,6 @@ class Range(_Range, DirectAccess):
         {self.iterable.index} front, /**< @private */ back; /**< @private */
       }};
     """)
-
-  def _copy(self, result, parameters, **kwargs):
-    return Macro(result, parameters, lambda target, source: f"{target} = {source}", **kwargs)
 
   def __setup__(self):
     super().__setup__()

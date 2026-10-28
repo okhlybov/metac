@@ -63,3 +63,23 @@ x.unit(f"{type.copy}(): copy across chunks", f"""
   TEST_EQUAL( {type.hash(t)}, {type.hash(t2)} );
   TEST_EQUAL_CHARS( {type.view(t2, 1)}, {s("two")} );
 """)
+
+x.unit(f"{type.set}(): self assignment with view", f"""
+  {type.push(t, s("hello"))};
+  {type.push(t, s("world"))};
+  {type.set(t, 0, type.view(t, 0))};
+  TEST_EQUAL_CHARS( {type.view(t, 0)}, {s("hello")} );
+  {type.set(t, 0, type.view(t, 1))};
+  TEST_EQUAL_CHARS( {type.view(t, 0)}, {s("world")} );
+""")
+
+x.unit(f"{type.front_view}(), {type.back_view}(), {type.clear}(): cstring access and clear", f"""
+  {type.push(t, s("first"))};
+  {type.push(t, s("second"))};
+  {type.push(t, s("third"))};
+  TEST_EQUAL_CHARS( {type.front_view(t)}, {s("first")} );
+  TEST_EQUAL_CHARS( {type.back_view(t)}, {s("third")} );
+  {type.clear(t)};
+  TEST_TRUE( {type.empty(t)} );
+  TEST_EQUAL( {type.size(t)}, 0 );
+""")

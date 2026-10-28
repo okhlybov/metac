@@ -291,7 +291,6 @@ class Range(_Range, Forward):
       """
 
     with self.front_view as m:
-      front_element = self.iterable.element.variable("target->front->element")
       m.inline_code = f"""
         assert(target);
         assert(!{self.empty(m.target)});
