@@ -10,6 +10,7 @@ t = type.variable("t")
 t1 = type.variable("t1")
 t2 = type.variable("t2")
 r = type.range.variable("r")
+dr = type.distinct_range.variable("dr")
 
 
 x.setup(f"""
@@ -141,7 +142,7 @@ x.unit(f"{type.copy}()/{type.move}(): value semantics", f"""
   {type.destroy(t2)};
 """)
 
-x.unit(f"{type.range}(): traverse elements and counts in order", f"""
+x.unit(f"{type.range}(): traverse elements with multiplicity in order", f"""
   {r.definition};
   size_t step = 0;
 
@@ -149,17 +150,42 @@ x.unit(f"{type.range}(): traverse elements and counts in order", f"""
   {type.add(t, 10, 1)};
   {type.add(t, 20, 2)};
 
-  /* FlatMap backend guarantees ascending element order */
+  /* Range yields each element repeated by its multiplicity in ascending element order */
   for({r} = {type.range.new(t)}; !{type.range.empty(r)}; {type.range.move_front(r)}) {{
     if(step == 0) {{
       TEST_EQUAL( *{type.range.front_view(r)}, 10 );
       TEST_EQUAL( {type.range.count(r)}, 1 );
-    }} else if(step == 1) {{
+    }} else if(step == 1 || step == 2) {{
       TEST_EQUAL( *{type.range.front_view(r)}, 20 );
       TEST_EQUAL( {type.range.count(r)}, 2 );
-    }} else if(step == 2) {{
+    }} else if(step >= 3 && step <= 5) {{
       TEST_EQUAL( *{type.range.front_view(r)}, 30 );
       TEST_EQUAL( {type.range.count(r)}, 3 );
+    }}
+    ++step;
+  }}
+  TEST_EQUAL( step, 6 );
+""")
+
+x.unit(f"{type.distinct_range}(): traverse distinct elements and counts in order", f"""
+  {dr.definition};
+  size_t step = 0;
+
+  {type.add(t, 30, 3)};
+  {type.add(t, 10, 1)};
+  {type.add(t, 20, 2)};
+
+  /* DistinctRange yields each unique element once with its multiplicity */
+  for({dr} = {type.distinct_range.new(t)}; !{type.distinct_range.empty(dr)}; {type.distinct_range.move_front(dr)}) {{
+    if(step == 0) {{
+      TEST_EQUAL( *{type.distinct_range.front_view(dr)}, 10 );
+      TEST_EQUAL( {type.distinct_range.count(dr)}, 1 );
+    }} else if(step == 1) {{
+      TEST_EQUAL( *{type.distinct_range.front_view(dr)}, 20 );
+      TEST_EQUAL( {type.distinct_range.count(dr)}, 2 );
+    }} else if(step == 2) {{
+      TEST_EQUAL( *{type.distinct_range.front_view(dr)}, 30 );
+      TEST_EQUAL( {type.distinct_range.count(dr)}, 3 );
     }}
     ++step;
   }}
@@ -422,14 +448,15 @@ x.unit(f"{type.is_subset}(): sub-multiset test", f"""
 
 x.unit(f"{type.equal_range}(): get range spanning element occurrences", f"""
   {r.definition};
+  size_t count = 0;
   {type.add(t, 25, 4)};
 
-  {r} = {type.equal_range(t, 25)};
-  TEST_FALSE( {type.range.empty(r)} );
-  TEST_EQUAL( *{type.range.front_view(r)}, 25 );
-  TEST_EQUAL( {type.range.count(r)}, 4 );
-  {type.range.move_front(r)};
-  TEST_TRUE( {type.range.empty(r)} );
+  for({r} = {type.equal_range(t, 25)}; !{type.range.empty(r)}; {type.range.move_front(r)}) {{
+    TEST_EQUAL( *{type.range.front_view(r)}, 25 );
+    TEST_EQUAL( {type.range.count(r)}, 4 );
+    ++count;
+  }}
+  TEST_EQUAL( count, 4 );
 
   /* Absent element yields empty range */
   {r} = {type.equal_range(t, 999)};

@@ -8,9 +8,10 @@ from metac.core import Composite, _StructRenderer, _type, enforced, Coerce, Type
 #
 class _Range(_StructRenderer, Range):
 
-  def __init__(self, iterable, *args, **kwargs):
-    super().__init__(iterable.element, iterable._decorate_component("range", abbreviate=not iterable.public, hidden=not iterable.public), visibility=iterable.visibility, **kwargs)
+  def __init__(self, iterable, *args, component="range", **kwargs):
+    super().__init__(iterable.element, iterable._decorate_component(component, abbreviate=not iterable.public, hidden=not iterable.public), visibility=iterable.visibility, **kwargs)
     self.iterable = iterable
+    self.component = component
     iterable.references.add(self)
     self.dependencies.add(iterable)
 

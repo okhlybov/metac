@@ -628,7 +628,6 @@ def emit_multiset(ctx):
                          f"TEST_EQUAL({ctx.call('wipe', ctx.t, a0)}, 2);",
                          f"TEST_EQUAL({ctx.call('count', ctx.t, a0)}, 0);"]), nlocs=1)
 
-  from metac.counter import Counter
   if active(T, "equal_range") and getattr(T, "range", None) is not None:
     r = T.range.variable("r")
     ctx.unit("equal_range(): cover all occurrences",
@@ -636,7 +635,7 @@ def emit_multiset(ctx):
                          f"{r.definition} = {T.equal_range(ctx.t, a0)};",
                          "size_t n = 0;",
                          f"while(!{T.range.empty(r)}) {{ ++n; {T.range.move_front(r)}; }}",
-                         f"TEST_EQUAL(n, {1 if isinstance(T, Counter) else 2});",
+                         "TEST_EQUAL(n, 2);",
                          f"TEST_EQUAL({ctx.call('count', ctx.t, a0)}, 2);"]), nlocs=1)
 
   if active(T, "add") and active(T, "total_size"):
