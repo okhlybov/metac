@@ -16,7 +16,9 @@ import metac.core
 class _Entry(Record):
 
   def __init__(self, name, collection, index, visibility, *args, **kwargs):
-    super().__init__(name, {"index": index, "values": collection}, *args, visibility=visibility, **kwargs)
+    # views=False: the hand-rolled index/element view aliases below are the
+    # entry's public face - the generated per-field views would collide with them
+    super().__init__(name, {"index": index, "values": collection}, *args, visibility=visibility, views=False, **kwargs)
     self.index = self.fields["index"]
     self.values = self.fields["values"]
     self.element_p = self.values.view_type
@@ -433,7 +435,7 @@ class Map(Multimapping):
           {entry.destroy(_probe)};
         }} else {{
           {col.put("&probe.values", m.element)};
-          {set.put(_target, _probe)};
+          {set.plant(_target, _probe)};
           {entry.destroy(_probe)};
         }}
         ++target->size;

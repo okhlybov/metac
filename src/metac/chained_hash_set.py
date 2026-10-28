@@ -166,6 +166,27 @@ class Set(_StructRenderer, metac.set.Set, Hashed):
         return 1;
       """
 
+    # Insertion of an element whose absence the caller has already verified - moves
+    # the source into the fresh node when the element type is movable, sparing the
+    # deep copy and admitting the moveable-but-not-copyable elements for the
+    # map-level set()/emplace() callers
+    with self.method("int", "plant", {"target": inout(self), "element": inout(self.element)}, hidden=True, visibility="internal",
+      constraint=lambda: self.element.copyable or self.element.moveable, brief="Plant a verified-absent element into the table (internal)") as m:
+      _insert = self.element.move if self.element.moveable else self.element.copy
+      m.code = f"""
+        size_t bucket;
+        {self.node}* n;
+        assert(target);
+        {self.resize(m.target, "target->size+1")};
+        bucket = {self.element.hash_lookup_hash(m.element)} & (target->capacity-1);
+        n = {self.memory.allocate(self.node)};
+        {_insert(node_element, m.element)};
+        n->next = target->buckets[bucket];
+        target->buckets[bucket] = n;
+        ++target->size;
+        return 1;
+      """
+
     with self.emplace as m:
       create_args = [getattr(m, name) for name in self.element.constructor_parameters]
       _destroy_node = f"{self.element.destroy(node_element)};" if self.element.destructible else ""

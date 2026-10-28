@@ -1,7 +1,7 @@
 import metac.std as std
 from metac.hash import XorRot
 from metac.core import out, _type
-from metac.core import Composite, _StructRenderer
+from metac.core import Composite, _StructRenderer, Primitive, Indirection
 
 
 #
@@ -9,12 +9,16 @@ class Record(_StructRenderer, Composite):
   
   brief = "Structure container holding a number of typed values"
   
-  def __init__(self, name, fields, *args, hasher=XorRot(), getters=True, setters=True, opaque=True, dependencies=(), **kwargs):
+  def __init__(self, name, fields, *args, hasher=XorRot(), getters=True, setters=True, views=True, opaque=True, dependencies=(), **kwargs):
     super().__init__(name, *args, dependencies=(*dependencies, std.assert_h, hasher), **kwargs)
     self.fields = {str(name): _type(type) for name, type in fields.items()}
     self.hasher = hasher
     self.getters = getters
     self.setters = setters
+    # The borrowing field views generate alongside the readers unless the record
+    # supplies hand-rolled ones (e.g. the multimap entry aliases its views) -
+    # the flag lets such records opt out instead of colliding
+    self.views = views
     self.opaque = opaque
     self.dependencies.update(self.fields.values())
 
@@ -37,13 +41,15 @@ class Record(_StructRenderer, Composite):
       m.inline_code = _create
 
     with self.destroy as m:
-      code = []
-      target = f"({m.target.bind(self)})"
-      for field, type in self.fields.items():
-        if type.destructible:
-          code.append(type.destroy(type.variable(f"{target}.{field}")))
-          code.append(";")
-      m.inline_code = code
+      def _destroy(m):
+        code = []
+        target = f"({m.target.bind(self)})"
+        for field, type in self.fields.items():
+          if type.destructible:
+            code.append(type.destroy(type.variable(f"{target}.{field}")))
+            code.append(";")
+        return str().join([str(x) for x in code])
+      m.inline_code = _destroy
 
     with self.equal as m:
       def _equal(m):
@@ -94,6 +100,8 @@ class Record(_StructRenderer, Composite):
     if self.getters:
       for field, type in self.fields.items():
         self._add_reader(type, field)
+        if self.views:
+          self._add_view(type, field)
 
     if self.setters:
       for field, type in self.fields.items():
@@ -118,11 +126,36 @@ class Record(_StructRenderer, Composite):
         """
       m.inline_code = _reader_code
 
+  def _add_view(self, type, field):
+    # The borrowing counterpart of the copying reader - uniform with the variant's
+    # alternative views; unlike the reader it carries no constraint, so the
+    # non-copyable fields stay observable and the heavy ones avoid the clone
+    with self.method(type.view_type, (field, "view"), {"target": self}, attribute=("get", field, "view"), visibility=self.visibility, brief=f"Get view of the {field} field",
+      description=f"""
+        Returns a constant view of the {field} field of the record without copying it.
+        The view is valid while the record keeps the field - any setter or the record
+        destruction invalidates it.
+
+        @param[in] target the record to read
+        @return a constant view of the {field} field, valid while the record keeps the field
+      """) as m:
+      def _view_code(m):
+        target = f"({m.target.bind(self)})"
+        return f"""
+          return {type.variable(f"{target}.{field}").bind(m.result)};
+        """
+      m.inline_code = _view_code
+
   def _add_writer(self, type, field):
+    # The composite fields pass the value by pointer, so the exact self-assignment
+    # (the view of the very field fed into its own setter) is recognizable and
+    # neutralized as the no-op it means; the value-passed primitives cannot alias
+    self_aliasing = isinstance(type, Composite) and not isinstance(type, (Primitive, Indirection))
+    brief_note = " Assigning the field to itself through its own view is a recognized no-op." if self_aliasing else ""
     with self.method(None, ("set", field), {"target": out(self), "value": type}, visibility=self.visibility, constraint=lambda: type.copyable, brief=f"Set the {field} field",
       description=f"""
         Replaces the contents of the {field} field with the given value - the previously
-        held field value is destroyed first.
+        held field value is destroyed first.{brief_note}
 
         @param[out] target the record to update
         @param[in] value the value to store into the {field} field - the previous field value is destroyed
@@ -130,10 +163,15 @@ class Record(_StructRenderer, Composite):
       def _writer_code(m):
         target = f"({m.target.bind(self)})"
         destroy_field = type.destroy(type.variable(f"{target}.{field}")) if type.destructible else str()
-        return f"""
+        body = f"""
           {destroy_field};
           {type.copy(type.variable(f"{target}.{field}"), "value")};
         """
+        if self_aliasing:
+          body = f"""
+            if(&{target}.{field} != value) {{{body}}}
+          """
+        return body
       m.inline_code = _writer_code
 
   def _add_emplace_writer(self, type, field):

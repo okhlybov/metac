@@ -191,8 +191,7 @@ class Buffer(_StructRenderer, Composite):
           {self._chunks.create("(&target->variant.value.chunks)")};
           target->variant.tag = 1;
           if(old && old != _metac_empty_string && *old != '\\0') {{
-            {self._chunks.push("(&target->variant.value.chunks)", "old")};
-            free(old);
+            {self._chunks.push_move("(&target->variant.value.chunks)", "old")};
           }}
         }} else {{
           {self._chunks.create("(&target->variant.value.chunks)")};
@@ -235,13 +234,11 @@ class Buffer(_StructRenderer, Composite):
             memcpy(target->scratch, str, size);
             target->scratch_size = size;
           }} else {{
-            chunk = (char*)malloc(size + 1);
-            assert(chunk);
+            chunk = (char*)_metac_malloc(size + 1);
             memcpy(chunk, str, size);
             chunk[size] = '\\0';
             {self._ensure_chunks("target")};
-            {self._chunks.push("(&target->variant.value.chunks)", "chunk")};
-            free(chunk);
+            {self._chunks.push_move("(&target->variant.value.chunks)", "chunk")};
           }}
         }}
       """
@@ -504,8 +501,7 @@ class Buffer(_StructRenderer, Composite):
           target->scratch_size = 0;
           return _metac_empty_string;
         }}
-        buf = (char*)malloc(target->length + 1);
-        assert(buf);
+        buf = (char*)_metac_malloc(target->length + 1);
         p = buf;
         if(target->variant.tag == 1) {{
           count = target->variant.value.chunks.size;
@@ -555,8 +551,7 @@ class Buffer(_StructRenderer, Composite):
         {self.view("target")};
         result = target->variant.value.string;
         if(result == _metac_empty_string) {{
-          result = (char*)malloc(1);
-          assert(result);
+          result = (char*)_metac_malloc(1);
           result[0] = '\\0';
         }}
         target->variant.tag = 0;

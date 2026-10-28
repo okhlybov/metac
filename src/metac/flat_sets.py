@@ -137,7 +137,7 @@ class Set(_StructRenderer, Bisectable, Ordered, Container):
         return target->elements;
       """
 
-    with self.method(None, "reserve", {"target": inout(self), "capacity": std.size_t}, constraint=lambda: self.element.copyable and self.element.comparable, brief="Reserve storage capacity",
+    with self.method(None, "reserve", {"target": inout(self), "capacity": std.size_t}, constraint=lambda: self.element.moveable, brief="Reserve storage capacity",
       description="""
         Ensures the container has allocated storage for at least the given number of elements.
 
@@ -161,7 +161,7 @@ class Set(_StructRenderer, Bisectable, Ordered, Container):
         }}
       """
 
-    with self.method(None, "compact", {"target": inout(self)}, constraint=lambda: self.element.copyable and self.element.comparable, brief="Compact buffer capacity to fit element count",
+    with self.method(None, "compact", {"target": inout(self)}, constraint=lambda: self.element.moveable, brief="Compact buffer capacity to fit element count",
       description="""
         Reduces the allocated capacity down to the current size.
 

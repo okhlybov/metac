@@ -66,6 +66,14 @@ x.unit(f"{type.push}/{type.pop}(): pop returns the elements in the descending or
   TEST_TRUE( {type.empty(t)} );
 """)
 
+x.unit(f"{type.copy}(): copy zero-capacity queue", f"""
+  {t2.definition};
+  {type.copy(t2, t)};
+  TEST_TRUE( {type.empty(t2)} );
+  TEST_EQUAL( {type.size(t2)}, 0 );
+  {type.destroy(t2)};
+""")
+
 x.unit(f"{type.copy}(): copy preserves the extraction order", f"""
   {t2.definition};
   {type.create(t2)};

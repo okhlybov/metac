@@ -83,20 +83,20 @@ class Option(Composite):
         {self._mark(0)("(*source)")};
       """
 
-    # The generic swap exchanges the two values through the move protocol - a plain
-    # struct exchange would shallow-copy the element leaving both sides owning it
+    # The exchange of the raw representations is the O(1) swap - the total ownership
+    # is preserved with each side ending up owning exactly what the other held, so
+    # no element protocol needs running at all. The move-through-temp variant this
+    # replaces left the temp marked empty while its moved-from slot could hold the
+    # default-constructed (allocating) element - leaked by the skipped destroy
     with self.swap as m:
       temp = self.variable("temp")
-      destroy_temp = f"{self.destroy(temp)};" if self.destructible else ""
       m.inline_code = f"""
         {temp.definition};
         assert(left);
         assert(right);
-        {self.create(temp)};
-        {self.move(temp, m.left)};
-        {self.move(m.left, m.right)};
-        {self.move(m.right, temp)};
-        {destroy_temp}
+        temp = *{m.left};
+        *{m.left} = *{m.right};
+        *{m.right} = temp;
       """
 
     if element.comparable:

@@ -148,35 +148,14 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
         return ({self.element.view_type})NULL;
       """
 
-    with self.put as m:
+    # Shared bottom-up insertion fixup - the single source of the CLRS rebalancing
+    # for both put() and emplace(), which link the fresh red node and delegate here
+    with self.method(None, ("rebalance", "insert"), {"target": inout(self), "n": Callable.Parameter(self._node_p)}, hidden=True, visibility="internal", brief="Rebalance after linking the freshly inserted red node (internal)") as m:
       m.code = f"""
-        {self.node}* n;
-        {self.node}* parent;
-        {self.node}* curr;
         {self.node}* p;
         {self.node}* g;
         {self.node}* u;
-        int order = 0;
         assert(target);
-        parent = NULL;
-        curr = target->root;
-        while(curr) {{
-          order = {self.element.compare(curr_element, m.element)};
-          if(order == 0) return 0;
-          parent = curr;
-          curr = order > 0 ? curr->left : curr->right;
-        }}
-        n = {self.memory.allocate(self.node)};
-        assert(((size_t)n & 1) == 0); /* guard assert: verify allocated node is at least 2-byte aligned for 1-bit color tag */
-        {self.element.copy(node_element, m.element)};
-        n->left = n->right = NULL;
-        n->parent = ((size_t)parent) | 1; /* RED */
-        if(!parent) target->root = n;
-        else if(order > 0) parent->left = n;
-        else parent->right = n;
-        ++target->size;
-
-        /* Rebalance: CLRS fixup */
         while(n->parent & ~(size_t)1) {{
           p = ({self.node}*)(n->parent & ~(size_t)1);
           if((p->parent & 1) == 0) break; /* parent is black */
@@ -221,6 +200,67 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
           }}
         }}
         target->root->parent &= ~(size_t)1; /* root is black */
+      """
+
+    with self.put as m:
+      m.code = f"""
+        {self.node}* n;
+        {self.node}* parent;
+        {self.node}* curr;
+        int order = 0;
+        assert(target);
+        parent = NULL;
+        curr = target->root;
+        while(curr) {{
+          order = {self.element.compare(curr_element, m.element)};
+          if(order == 0) return 0;
+          parent = curr;
+          curr = order > 0 ? curr->left : curr->right;
+        }}
+        n = {self.memory.allocate(self.node)};
+        assert(((size_t)n & 1) == 0); /* guard assert: verify allocated node is at least 2-byte aligned for 1-bit color tag */
+        {self.element.copy(node_element, m.element)};
+        n->left = n->right = NULL;
+        n->parent = ((size_t)parent) | 1; /* RED */
+        if(!parent) target->root = n;
+        else if(order > 0) parent->left = n;
+        else parent->right = n;
+        ++target->size;
+        {self.rebalance_insert(m.target, "n")};
+        return 1;
+      """
+
+    # Insertion of an element whose absence the caller has already verified (or whose
+    # whole-entry equality suffices) - moves the source into the fresh node when the
+    # element type is movable, sparing the deep copy and admitting the
+    # moveable-but-not-copyable elements for the map-level set()/emplace() callers
+    with self.method("int", "plant", {"target": inout(self), "element": inout(self.element)}, hidden=True, visibility="internal",
+      constraint=lambda: self.element.copyable or self.element.moveable, brief="Plant a verified-absent element into the tree (internal)") as m:
+      _insert = self.element.move if self.element.moveable else self.element.copy
+      m.code = f"""
+        {self.node}* n;
+        {self.node}* parent;
+        {self.node}* curr;
+        int order = 0;
+        assert(target);
+        parent = NULL;
+        curr = target->root;
+        while(curr) {{
+          order = {self.element.compare(curr_element, m.element)};
+          if(order == 0) return 0;
+          parent = curr;
+          curr = order > 0 ? curr->left : curr->right;
+        }}
+        n = {self.memory.allocate(self.node)};
+        assert(((size_t)n & 1) == 0);
+        {_insert(node_element, m.element)};
+        n->left = n->right = NULL;
+        n->parent = ((size_t)parent) | 1; /* RED */
+        if(!parent) target->root = n;
+        else if(order > 0) parent->left = n;
+        else parent->right = n;
+        ++target->size;
+        {self.rebalance_insert(m.target, "n")};
         return 1;
       """
 
@@ -231,9 +271,6 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
         {self.node}* n;
         {self.node}* parent;
         {self.node}* curr;
-        {self.node}* p;
-        {self.node}* g;
-        {self.node}* u;
         int order = 0;
         assert(target);
         n = {self.memory.allocate(self.node)};
@@ -257,52 +294,7 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
         else if(order > 0) parent->left = n;
         else parent->right = n;
         ++target->size;
-
-        /* Rebalance: CLRS fixup */
-        while(n->parent & ~(size_t)1) {{
-          p = ({self.node}*)(n->parent & ~(size_t)1);
-          if((p->parent & 1) == 0) break; /* parent is black */
-          g = ({self.node}*)(p->parent & ~(size_t)1);
-          if(!g) break;
-          if(p == g->left) {{
-            u = g->right;
-            if(u && (u->parent & 1)) {{
-              p->parent &= ~(size_t)1; /* black */
-              u->parent &= ~(size_t)1; /* black */
-              g->parent |= 1;          /* red */
-              n = g;
-            }} else {{
-              if(n == p->right) {{
-                n = p;
-                {self.rotate_left(m.target, "n")};
-                p = ({self.node}*)(n->parent & ~(size_t)1);
-                g = ({self.node}*)(p->parent & ~(size_t)1);
-              }}
-              p->parent &= ~(size_t)1; /* black */
-              g->parent |= 1;          /* red */
-              {self.rotate_right(m.target, "g")};
-            }}
-          }} else {{
-            u = g->left;
-            if(u && (u->parent & 1)) {{
-              p->parent &= ~(size_t)1; /* black */
-              u->parent &= ~(size_t)1; /* black */
-              g->parent |= 1;          /* red */
-              n = g;
-            }} else {{
-              if(n == p->left) {{
-                n = p;
-                {self.rotate_right(m.target, "n")};
-                p = ({self.node}*)(n->parent & ~(size_t)1);
-                g = ({self.node}*)(p->parent & ~(size_t)1);
-              }}
-              p->parent &= ~(size_t)1; /* black */
-              g->parent |= 1;          /* red */
-              {self.rotate_left(m.target, "g")};
-            }}
-          }}
-        }}
-        target->root->parent &= ~(size_t)1; /* root is black */
+        {self.rebalance_insert(m.target, "n")};
         return 1;
       """
 

@@ -1,5 +1,7 @@
 import metac.set
 import metac.flat_sets
+import metac.std as std
+from metac.core import inout
 from metac.flat_sets import Range
 
 
@@ -54,5 +56,25 @@ class Set(metac.flat_sets.Set, metac.set.Set):
         """
         return self._move_at_code(pos_code, "pos", _temp_elem)
       m.code = _emplace_code
+
+    # Insertion at a caller-computed position: the caller has already probed the
+    # array and verified the element's absence, so the position needs no second
+    # binary search - insert_at copies the element in while move_at consumes it,
+    # sparing the deep copy and admitting the moveable-but-not-copyable elements
+    with self.method("int", ("insert", "at"), {"target": inout(self), "pos": std.size_t, "element": self.element}, hidden=True, visibility="internal",
+      constraint=lambda: self.element.copyable, brief="Insert the verified-absent element at the position (internal)") as m:
+      m.code = self._insert_at_code(f"""
+        size_t i;
+        assert(target);
+        assert(pos <= target->size);
+      """, "pos", m.element)
+
+    with self.method("int", ("move", "at"), {"target": inout(self), "pos": std.size_t, "element": inout(self.element)}, hidden=True, visibility="internal",
+      constraint=lambda: self.element.moveable, brief="Move the verified-absent element into the position (internal)") as m:
+      m.code = self._move_at_code(f"""
+        size_t i;
+        assert(target);
+        assert(pos <= target->size);
+      """, "pos", m.element)
 
 

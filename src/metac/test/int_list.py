@@ -231,6 +231,15 @@ x.unit(f"{type.copy}(): copy !empty list", f"""
   TEST_TRUE( {type.equal(t1, t2)} );
 """)
 
+x.unit(f"{type.copy}(): self-copy does not corrupt list", f"""
+  {type.copy(t2, t1)};
+  {type.push_front(t1, 10)};
+  {type.push_front(t1, 20)};
+  {type.copy(t1, t1)};
+  TEST_EQUAL( {type.size(t1)}, 2 );
+  TEST_EQUAL( {type.front(t1)}, 20 );
+""")
+
 
 x.setup(f"""
   {t.definition};

@@ -72,25 +72,22 @@ class List(_StructRenderer, Sequential, Insertable):
     
     with self.copy as m:
       m.code = lambda m: f"""
-        size_t size;
-        {self.node}* target_node;
         {self.node}* source_node;
+        {self.node}** target_tail;
         assert(target);
         assert(source);
+        if(target == source) return;
         target->front = NULL;
-        target->size = size = {self.size("source")};
-        while(size--) {{
+        target->size = 0;
+        target_tail = &target->front;
+        for(source_node = source->front; source_node; source_node = source_node->next) {{
           {self.node}* node;
           node = {self.memory.allocate(self.node)};
-          node->next = target->front;
-          target->front = node;
-        }}
-        target_node = target->front;
-        source_node = source->front;
-        while(target_node && source_node) {{
-          {self.element.copy(target_element, source_element)};
-          target_node = target_node->next;
-          source_node = source_node->next;
+          {self.element.copy(node_element, self.element.variable("source_node->element"))};
+          node->next = NULL;
+          *target_tail = node;
+          target_tail = &node->next;
+          ++target->size;
         }}
       """
 

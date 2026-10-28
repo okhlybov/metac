@@ -156,6 +156,43 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
         return 1;
       """
 
+    # Insertion of an element whose absence the caller has already verified - moves
+    # the source into the fresh node when the element type is movable, sparing the
+    # deep copy and admitting the moveable-but-not-copyable elements for the
+    # map-level set()/emplace() callers
+    with self.method("int", "plant", {"target": inout(self), "element": inout(self.element)}, hidden=True, visibility="internal",
+      constraint=lambda: self.element.copyable or self.element.moveable, brief="Plant a verified-absent element into the tree (internal)") as m:
+      _insert = self.element.move if self.element.moveable else self.element.copy
+      m.code = f"""
+        {self.node}* n;
+        {self.node}* parent;
+        {Indirection(self._node_p)} link;
+        int order;
+        assert(target);
+        link = &target->root;
+        parent = NULL;
+        while(*link) {{
+          order = {self.element.compare(link_element, m.element)};
+          if(order == 0) return 0;
+          parent = *link;
+          link = order > 0 ? &parent->left : &parent->right;
+        }}
+        n = {self.memory.allocate(self.node)};
+        {_insert(node_element, m.element)};
+        n->left = n->right = NULL;
+        n->parent = parent;
+        *link = n;
+        ++target->size;
+        while(n->parent && {self.randomizer.priority(node_parent)} < {self.randomizer.priority(node)}) {{
+          if(n->parent->right == n) {{
+            {self.rotate_left(self.link(m.target, "n->parent"))};
+          }} else {{
+            {self.rotate_right(self.link(m.target, "n->parent"))};
+          }}
+        }}
+        return 1;
+      """
+
     with self.emplace as m:
       create_args = [getattr(m, name) for name in self.element.constructor_parameters]
       _destroy_node = f"{self.element.destroy(node_element)};" if self.element.destructible else ""

@@ -33,6 +33,12 @@ class Queue(_StructRenderer, Insertable):
   def hashable(self):
     return False
 
+  def _migrate_element(self, destination, source):
+    if self.element.moveable:
+      return f"{self.element.move(self.element.variable(destination), source)};"
+    destroy_source = f"{self.element.destroy(source)};" if self.element.destructible else ""
+    return f"{self.element.copy(self.element.variable(destination), source)}; {destroy_source}"
+
   def __setup__(self):
     super().__setup__()
 
@@ -105,10 +111,13 @@ class Queue(_StructRenderer, Insertable):
         size_t index;
         assert(target);
         assert(source);
-        target->elements = {self.memory.allocate(self.element, "source->capacity")};
+        if(target == source) return;
+        if(source->capacity > 0) {{
+          target->elements = {self.memory.allocate(self.element, "source->capacity")};
+          for(index = 0; index < source->size; ++index) {self.element.copy(self.element.variable("target->elements[index]"), self.element.variable("source->elements[index]"))};
+        }} else target->elements = NULL;
         target->capacity = source->capacity;
         target->size = source->size;
-        for(index = 0; index < source->size; ++index) {self.element.copy(self.element.variable("target->elements[index]"), self.element.variable("source->elements[index]"))};
       """
 
     with self.move as m:
@@ -134,17 +143,22 @@ class Queue(_StructRenderer, Insertable):
       """
 
     with self.method(None, "_grow", {"target": inout(self)}, hidden=True, visibility="internal", brief="Grow internal buffer if needed (internal)") as m:
-      m.code = f"""
-        size_t index, new_capacity;
-        {self._element_p} elements;
-        assert(target);
-        new_capacity = target->capacity ? target->capacity*2 : 8;
-        elements = {self.memory.allocate(self.element, "new_capacity")};
-        for(index = 0; index < target->size; ++index) {self.element.copy(self.element.variable("elements[index]"), self.element.variable("target->elements[index]"))};
-        {self.memory.free("target->elements")};
-        target->elements = elements;
-        target->capacity = new_capacity;
-      """
+      def _grow_code(m):
+        migrate = self._migrate_element("elements[index]", self.element.variable("target->elements[index]"))
+        return f"""
+          size_t index, new_capacity;
+          {self._element_p} elements;
+          assert(target);
+          new_capacity = target->capacity ? target->capacity*2 : 8;
+          elements = {self.memory.allocate(self.element, "new_capacity")};
+          for(index = 0; index < target->size; ++index) {{
+            {migrate}
+          }}
+          if(target->elements) {self.memory.free("target->elements")};
+          target->elements = elements;
+          target->capacity = new_capacity;
+        """
+      m.code = _grow_code
 
     with self.method(None, ("sift", "up"), {"target": inout(self), "index": std.size_t}, hidden=True, visibility="internal", brief="Sift element up in heap (internal)") as m:
       m.code = lambda m: f"""

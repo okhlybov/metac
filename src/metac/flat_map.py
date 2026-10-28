@@ -107,6 +107,8 @@ class Map(Mapping, Ordered):
       """
 
     with self.set as m:
+      # The probe loop terminates with low at the exact insertion position - the
+      # entry is planted right there instead of re-searching through the set's put
       m.code = f"""
         size_t low, high, mid;
         int order;
@@ -126,7 +128,7 @@ class Map(Mapping, Ordered):
         }}
         {entry.emplace_index(_entry, m.index)};
         {entry.emplace_element(_entry, m.element)};
-        {set.put(_target, _entry)};
+        {set.insert_at(_target, "low", _entry)};
         {entry.destroy_element(_entry)};
         {entry.destroy_index(_entry)};
       """
@@ -149,7 +151,7 @@ class Map(Mapping, Ordered):
         }}
         {entry.emplace_index(_entry, m.index)};
         {entry.create_element(_entry, *create_args)};
-        {set.put(_target, _entry)};
+        {set.move_at(_target, "low", _entry)};
         {entry.destroy_element(_entry)};
         {entry.destroy_index(_entry)};
         return 1;

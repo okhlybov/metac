@@ -114,7 +114,7 @@ class Map(Mapping, Ordered):
         }} else {{
           {entry.emplace_index(_entry, m.index)};
           {entry.emplace_element(_entry, m.element)};
-          {set.put(_target, _entry)};
+          {set.plant(_target, _entry)};
           {entry.destroy_element(_entry)};
           {entry.destroy_index(_entry)};
         }}
@@ -144,7 +144,7 @@ class Map(Mapping, Ordered):
         }}
         {entry.emplace_index(_entry, m.index)};
         {entry.create_element(_entry, *create_args)};
-        {set.put(_target, _entry)};
+        {set.plant(_target, _entry)};
         {entry.destroy_element(_entry)};
         {entry.destroy_index(_entry)};
         return 1;

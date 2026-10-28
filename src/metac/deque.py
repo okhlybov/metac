@@ -73,27 +73,21 @@ class Deque(_StructRenderer, Sequential, Insertable):
 
     with self.copy as m:
       m.code = lambda m: f"""
-        size_t size;
-        {self.node}* target_node;
         {self.node}* source_node;
         assert(target);
         assert(source);
+        if(target == source) return;
         target->front = target->back = NULL;
-        target->size = size = {self.size("source")};
-        while(size--) {{
+        target->size = 0;
+        for(source_node = source->front; source_node; source_node = source_node->next) {{
           {self.node}* node;
           node = {self.memory.allocate(self.node)};
+          {self.element.copy(node_element, self.element.variable("source_node->element"))};
           node->prev = target->back;
           node->next = NULL;
           if(target->back) target->back->next = node; else target->front = node;
           target->back = node;
-        }}
-        target_node = target->front;
-        source_node = source->front;
-        while(target_node && source_node) {{
-          {self.element.copy(target_element, source_element)};
-          target_node = target_node->next;
-          source_node = source_node->next;
+          ++target->size;
         }}
       """
 

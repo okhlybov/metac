@@ -17,13 +17,9 @@ class Meson:
     meson = os.path.join(module.directory, f"{module.name}.meson")
     files = [module.header.file_name] + [s.file_name for s in module.sources]
     contents = "\n".join(files) + "\n"
-    try:
-      with open(meson, "r") as f:
-        if not f.read() == contents:
-          raise Exception()
-    except Exception:
-      with open(meson, "w") as f:
-        f.write(contents)
+    p = pathlib.Path(meson)
+    if not p.exists() or p.read_text() != contents:
+      p.write_text(contents)
     st = stamp or self.stamp
     if not st:
       _, _, st = metac.backend.parse()

@@ -1,7 +1,7 @@
 import metac.std as std
 from metac.hash import XorRot
 from metac.core import out, _type
-from metac.core import Composite, _StructRenderer
+from metac.core import Composite, _StructRenderer, Primitive, Indirection
 
 
 #
@@ -161,16 +161,27 @@ class Variant(_StructRenderer, Composite):
       """
 
   def _add_writer(self, type, name, index):
+    # Setting the currently held alternative from its own view is the exact
+    # self-assignment - destroy_active would free the storage the following copy
+    # reads from, so the recognized case short-circuits into the no-op it means.
+    # The pointer-passed composite alternatives can alias; the value-passed
+    # primitives cannot
+    self_aliasing = isinstance(type, Composite) and not isinstance(type, (Primitive, Indirection))
+    brief_note = " Setting the alternative to itself through its own view is a recognized no-op." if self_aliasing else ""
     with self.method(None, ("set", name), {"target": out(self), "value": type}, visibility=self.visibility, constraint=lambda: type.copyable, brief=f"Set the {name} value",
       description=f"""
         Stores the value as the {name} alternative - the alternative the variant held
-        before is destroyed first since a variant holds exactly one value at a time.
+        before is destroyed first since a variant holds exactly one value at a time.{brief_note}
 
         @param[out] target the variant to update
         @param[in] value the value to store as the {name} alternative - the alternative previously held is destroyed
       """) as m:
       target = f"({m.target.bind(self)})"
+      guard = f"""
+        if({target}.tag == {index} && (const void*)value == (const void*)&{target}.value.{name}) return;
+      """ if self_aliasing else ""
       m.inline_code = f"""
+        {guard}
         {self._destroy_active(target)};
         {target}.tag = {index};
         {type.copy(type.variable(f"{target}.value.{name}"), "value")};

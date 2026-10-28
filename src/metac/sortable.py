@@ -60,19 +60,32 @@ class Sortable(Bisectable):
           while(i <= j) {{
             while({self.element.compare(element_i(m.target), pivot)} < 0) ++i;
             while({self.element.compare(element_j(m.target), pivot)} > 0) --j;
-            if(i >= j) break;
+            if(i > j) break;
+            if(i == j) {{
+              ++i;
+              if(j > 0) --j;
+              break;
+            }}
             {self.element.swap(element_i(m.target), element_j(m.target))};
             ++i;
-            --j;
+            if(j > 0) --j; else break;
           }}
           {str(self.element.destroy(pivot)) + ";" if self.element.destructible else str()}
           /* recursing into the smaller part and iterating over the larger one bounds the recursion depth */
-          if(j - {m.lo} < {m.hi} - i) {{
-            {self.sort_range(m.target, m.lo, "j")};
+          if({m.lo} < j && i < {m.hi}) {{
+            if(j - {m.lo} < {m.hi} - i) {{
+              {self.sort_range(m.target, m.lo, "j")};
+              {m.lo} = i;
+            }} else {{
+              {self.sort_range(m.target, "i", m.hi)};
+              {m.hi} = j;
+            }}
+          }} else if({m.lo} < j) {{
+            {m.hi} = j;
+          }} else if(i < {m.hi}) {{
             {m.lo} = i;
           }} else {{
-            {self.sort_range(m.target, "i", m.hi)};
-            {m.hi} = j;
+            break;
           }}
         }}
       """

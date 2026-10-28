@@ -1,5 +1,6 @@
 import metac.multiset
 import metac.flat_sets
+from metac.core import inout
 from metac.flat_sets import Range
 
 
@@ -41,6 +42,23 @@ class Set(metac.flat_sets.Set, metac.multiset.Multiset):
         pos = {self.upper_bound(m.target, m.element)};
       """
       m.code = self._insert_at_code(pos_code, "pos", m.element)
+
+    # Insertion of an element whose ordering position the caller has already
+    # established - moves the source into the array when the element type is
+    # movable, sparing the deep copy and admitting the moveable-but-not-copyable
+    # elements for the map-level set()/emplace() callers
+    with self.method("int", "plant", {"target": inout(self), "element": inout(self.element)}, hidden=True, visibility="internal",
+      constraint=lambda: self.element.copyable or self.element.moveable, brief="Plant the element at the upper bound position (internal)") as m:
+      m.references.add(self.upper_bound)
+      pos_code = f"""
+        size_t pos, i;
+        assert(target);
+        pos = {self.upper_bound(m.target, m.element)};
+      """
+      if self.element.moveable:
+        m.code = self._move_at_code(pos_code, "pos", m.element)
+      else:
+        m.code = self._insert_at_code(pos_code, "pos", m.element)
 
     with self.emplace as m:
       m.brief = "Construct element in place in the multiset"

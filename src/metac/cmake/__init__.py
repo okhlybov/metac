@@ -1,4 +1,5 @@
 import os
+import pathlib
 import metac.module
 
 
@@ -29,13 +30,9 @@ class CMake:
         ${{{module.name}_SOURCES}}
       ){library}
     """
-    try:
-      with open(cmake, "r") as f:
-        if not f.read() == contents:
-          raise Exception()
-    except:
-      with open(cmake, "w") as f:
-        f.write(contents)
+    p = pathlib.Path(cmake)
+    if not p.exists() or p.read_text() != contents:
+      p.write_text(contents)
 
   def __enter__(self):
     self.__context = metac.module._build_context

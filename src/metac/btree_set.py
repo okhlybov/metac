@@ -96,6 +96,10 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
       """
 
     with self.method(None, ("split", "child"), {"target": inout(self), "parent": Callable.Parameter(self._node_p), "i": std.size_t}, hidden=True, visibility="internal", brief="Split full child of parent (internal)") as m:
+      # The moves vacate the source slots past the post-split count - a move leaves
+      # the source default-constructed, so the slots whose create() allocates would
+      # leak without the paired destroy
+      _destroy_vacated = lambda e: f"{self.element.destroy(self.element.variable(e))};" if self.element.destructible else ""
       m.code = f"""
         {self.node}* y;
         {self.node}* z;
@@ -113,6 +117,7 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
 
         for(j = 0; j < {min_keys}; ++j) {{
           {self.element.move(self.element.variable("z->elements[j]"), self.element.variable(f"y->elements[j + {self.order}]"))};
+          {_destroy_vacated(f"y->elements[j + {self.order}]")}
         }}
         if(!y->is_leaf) {{
           for(j = 0; j < {self.order}; ++j) {{
@@ -132,6 +137,7 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
           {self.element.move(self.element.variable("parent->elements[j]"), self.element.variable("parent->elements[j - 1]"))};
         }}
         {self.element.move(self.element.variable("parent->elements[i]"), self.element.variable(f"y->elements[{self.order - 1}]"))};
+        {_destroy_vacated(f"y->elements[{self.order - 1}]")}
         ++parent->count;
       """
 
@@ -232,6 +238,83 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
         return 1;
       """
 
+    # Insertion of an element whose absence the caller has already verified - moves
+    # the source into the node when the element type is movable, sparing the deep
+    # copy and admitting the moveable-but-not-copyable elements for the map-level
+    # set()/emplace() callers; the descent's duplicate check stays as the
+    # whole-entry comparison, which never fires for the pre-verified callers
+    with self.method("int", "plant", {"target": inout(self), "element": inout(self.element)}, hidden=True, visibility="internal",
+      constraint=lambda: self.element.copyable or self.element.moveable, brief="Plant a verified-absent element into the tree (internal)") as m:
+      _insert = self.element.move if self.element.moveable else self.element.copy
+      m.code = f"""
+        {self.node}* s;
+        {self.node}* curr;
+        size_t low, high, mid, i, j;
+        int order_cmp;
+        assert(target);
+
+        if(!target->root) {{
+          curr = {self.memory.allocate(self.node)};
+          curr->is_leaf = 1;
+          curr->count = 1;
+          curr->parent = NULL;
+          for(j = 0; j < {max_children}; ++j) curr->children[j] = NULL;
+          {_insert(self.element.variable("curr->elements[0]"), m.element)};
+          target->root = curr;
+          target->size = 1;
+          return 1;
+        }}
+
+        if(target->root->count == {max_keys}) {{
+          s = {self.memory.allocate(self.node)};
+          s->is_leaf = 0;
+          s->count = 0;
+          s->parent = NULL;
+          for(j = 0; j < {max_children}; ++j) s->children[j] = NULL;
+          s->children[0] = target->root;
+          target->root->parent = s;
+          target->root = s;
+          {self.split_child(m.target, "s", "0")};
+        }}
+
+        curr = target->root;
+        while(!curr->is_leaf) {{
+          low = 0;
+          high = curr->count;
+          while(low < high) {{
+            mid = low + (high - low) / 2;
+            order_cmp = {self.element.compare(self.element.variable("curr->elements[mid]"), m.element)};
+            if(order_cmp < 0) low = mid + 1;
+            else high = mid;
+          }}
+          i = low;
+          if(curr->children[i]->count == {max_keys}) {{
+            {self.split_child(m.target, "curr", "i")};
+            order_cmp = {self.element.compare(self.element.variable("curr->elements[i]"), m.element)};
+            if(order_cmp < 0) ++i;
+          }}
+          curr = curr->children[i];
+        }}
+
+        low = 0;
+        high = curr->count;
+        while(low < high) {{
+          mid = low + (high - low) / 2;
+          order_cmp = {self.element.compare(self.element.variable("curr->elements[mid]"), m.element)};
+          if(order_cmp < 0) low = mid + 1;
+          else high = mid;
+        }}
+        i = low;
+
+        for(j = curr->count; j > i; --j) {{
+          {self.element.move(self.element.variable("curr->elements[j]"), self.element.variable("curr->elements[j - 1]"))};
+        }}
+        {_insert(self.element.variable("curr->elements[i]"), m.element)};
+        ++curr->count;
+        ++target->size;
+        return 1;
+      """
+
     with self.emplace as m:
       create_args = [getattr(m, name) for name in self.element.constructor_parameters]
       _temp_elem = self.element.variable("temp_elem")
@@ -257,6 +340,7 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
           curr->parent = NULL;
           for(j = 0; j < {max_children}; ++j) curr->children[j] = NULL;
           {self.element.move(self.element.variable("curr->elements[0]"), _temp_elem)};
+          {_destroy_temp}
           target->root = curr;
           target->size = 1;
           return 1;
@@ -307,6 +391,7 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
           {self.element.move(self.element.variable("curr->elements[j]"), self.element.variable("curr->elements[j - 1]"))};
         }}
         {self.element.move(self.element.variable("curr->elements[i]"), _temp_elem)};
+        {_destroy_temp}
         ++curr->count;
         ++target->size;
         return 1;
@@ -314,6 +399,7 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
 
     with self.remove as m:
       destroy_found = f"{self.element.destroy(self.element.variable('node_found->elements[idx_found]'))};" if self.element.destructible else ""
+      _destroy_vacated = lambda e: f"{self.element.destroy(self.element.variable(e))};" if self.element.destructible else ""
       m.code = f"""
         {self.node}* node;
         {self.node}* node_found = NULL;
@@ -359,6 +445,7 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
           pred_idx = pred_node->count - 1;
           {destroy_found}
           {self.element.move(self.element.variable("node_found->elements[idx_found]"), self.element.variable("pred_node->elements[pred_idx]"))};
+          {_destroy_vacated("pred_node->elements[pred_idx]")}
           --pred_node->count;
           curr = pred_node;
         }} else {{
@@ -367,6 +454,9 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
             {self.element.move(self.element.variable("node_found->elements[j]"), self.element.variable("node_found->elements[j + 1]"))};
           }}
           --node_found->count;
+          /* the vacated top slot coincides with the destroyed one when the removed
+             element was last - the shift never ran and the slot is already gone */
+          if(idx_found < node_found->count) {{ {_destroy_vacated("node_found->elements[node_found->count]")} }}
           curr = node_found;
         }}
 
@@ -394,6 +484,7 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
             {self.element.move(self.element.variable("p->elements[k - 1]"), self.element.variable("left->elements[left->count - 1]"))};
             ++curr->count;
             --left->count;
+            {_destroy_vacated("left->elements[left->count]")}
             break;
           }}
 
@@ -418,6 +509,7 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
             }}
             ++curr->count;
             --right->count;
+            {_destroy_vacated("right->elements[right->count]")}
             break;
           }}
 
@@ -436,6 +528,9 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
               }}
             }}
             left->count += 1 + curr->count;
+            for(j = 0; j < curr->count; ++j) {{
+              {_destroy_vacated("curr->elements[j]")}
+            }}
             for(j = k - 1; j + 1 < p->count; ++j) {{
               {self.element.move(self.element.variable("p->elements[j]"), self.element.variable("p->elements[j + 1]"))};
             }}
@@ -444,6 +539,7 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
             }}
             p->children[p->count] = NULL;
             --p->count;
+            {_destroy_vacated("p->elements[p->count]")}
             {self.memory.free("curr")};
             curr = p;
           }} else {{
@@ -460,6 +556,9 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
               }}
             }}
             curr->count += 1 + right->count;
+            for(j = 0; j < right->count; ++j) {{
+              {_destroy_vacated("right->elements[j]")}
+            }}
             for(j = k; j + 1 < p->count; ++j) {{
               {self.element.move(self.element.variable("p->elements[j]"), self.element.variable("p->elements[j + 1]"))};
             }}
@@ -468,6 +567,7 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
             }}
             p->children[p->count] = NULL;
             --p->count;
+            {_destroy_vacated("p->elements[p->count]")}
             {self.memory.free("right")};
             curr = p;
           }}

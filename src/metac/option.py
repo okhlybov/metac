@@ -15,7 +15,14 @@ class Option(_StructRenderer, _Option):
       self._state_names = ["empty"] + [str(s) for s in states]
       self.nstates = len(self._state_names)
     elif isinstance(states, dict):
-      self._state_names = list(states.keys())
+      # Mirrors the sequence form: the canonical empty state is prepended unless
+      # the dict already names it - a dict without an "empty" key would otherwise
+      # silently assign its first state the index 0 the option reserves for empty
+      # (see the analogous _normalize_sentinel_states contract of the intrusive option)
+      names = list(states.keys())
+      if not names or names[0] != "empty":
+        names = ["empty"] + [n for n in names if n != "empty"]
+      self._state_names = names
       self.nstates = len(self._state_names)
     else:
       self.nstates = int(states)

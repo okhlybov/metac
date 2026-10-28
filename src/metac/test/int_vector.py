@@ -104,6 +104,14 @@ x.unit(f"{type.sort}(): sort permutation of 64 elements", f"""
   TEST_EQUAL( sum, 2016 );
 """)
 
+x.unit(f"{type.sort}(): sort >= 16 equal elements exercising quicksort", f"""
+  for(i = 0; i < 64; ++i) {type.set(t, "i", 42)};
+  {type.sort(t)};
+  TEST_TRUE( {type.sorted(t)} );
+  TEST_EQUAL( {type.get(t, 0)}, 42 );
+  TEST_EQUAL( {type.get(t, 63)}, 42 );
+""")
+
 
 x.setup(f"""
   int i;

@@ -27,7 +27,8 @@ class String(_AliasRenderer, Indirection, Assignable, Sequential):
       Supports two way character traversal via the corresponding @ref {self.range} iterator
       as well as subranging with direct indexed access to the subrange's characters.
 
-      Implemented as the dynamically sized null terminated char buffer carrying the embedded length.
+      Implemented as a plain dynamically sized null terminated `char` buffer - the length is
+      not stored alongside the characters, so querying it costs a `strlen()` traversal.
       The closest C++ equivalent is [std::string<>](https://cppreference.com/cpp/string/basic_string).
     """
 

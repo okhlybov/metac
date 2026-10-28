@@ -148,35 +148,16 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
         return ({self.element.view_type})NULL;
       """
 
-    with self.put as m:
+    # Shared bottom-up balance factor adjustment - the single source of the AVL
+    # rebalancing for both put() and emplace(), which link the fresh node and
+    # delegate here; the double rotation branches capture c before rotating
+    with self.method(None, ("rebalance", "insert"), {"target": inout(self), "n": Callable.Parameter(self._node_p)}, hidden=True, visibility="internal", brief="Rebalance after linking the freshly inserted node (internal)") as m:
       m.code = f"""
-        {self.node}* n;
-        {self.node}* parent;
         {self.node}* curr;
         {self.node}* p;
-        int order = 0;
         assert(target);
-        parent = NULL;
-        curr = target->root;
-        while(curr) {{
-          order = {self.element.compare(curr_element, m.element)};
-          if(order == 0) return 0;
-          parent = curr;
-          curr = order > 0 ? curr->left : curr->right;
-        }}
-        n = {self.memory.allocate(self.node)};
-        assert(((size_t)n & 3) == 0); /* guard assert: verify allocated node is at least 4-byte aligned for 2-bit balance tag */
-        {self.element.copy(node_element, m.element)};
-        n->left = n->right = NULL;
-        n->parent = ((size_t)parent) | 0; /* balance factor 0 (balanced) */
-        if(!parent) target->root = n;
-        else if(order > 0) parent->left = n;
-        else parent->right = n;
-        ++target->size;
-
-        /* Rebalance: bottom-up balance factor adjustment */
         curr = n;
-        p = parent;
+        p = ({self.node}*)(curr->parent & ~(size_t)3);
         while(p) {{
           int p_bf = (int)(p->parent & 3);
           if(curr == p->left) {{
@@ -249,6 +230,67 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
             }}
           }}
         }}
+      """
+
+    with self.put as m:
+      m.code = f"""
+        {self.node}* n;
+        {self.node}* parent;
+        {self.node}* curr;
+        int order = 0;
+        assert(target);
+        parent = NULL;
+        curr = target->root;
+        while(curr) {{
+          order = {self.element.compare(curr_element, m.element)};
+          if(order == 0) return 0;
+          parent = curr;
+          curr = order > 0 ? curr->left : curr->right;
+        }}
+        n = {self.memory.allocate(self.node)};
+        assert(((size_t)n & 3) == 0); /* guard assert: verify allocated node is at least 4-byte aligned for 2-bit balance tag */
+        {self.element.copy(node_element, m.element)};
+        n->left = n->right = NULL;
+        n->parent = ((size_t)parent) | 0; /* balance factor 0 (balanced) */
+        if(!parent) target->root = n;
+        else if(order > 0) parent->left = n;
+        else parent->right = n;
+        ++target->size;
+        {self.rebalance_insert(m.target, "n")};
+        return 1;
+      """
+
+    # Insertion of an element whose absence the caller has already verified - moves
+    # the source into the fresh node when the element type is movable, sparing the
+    # deep copy and admitting the moveable-but-not-copyable elements for the
+    # map-level set()/emplace() callers
+    with self.method("int", "plant", {"target": inout(self), "element": inout(self.element)}, hidden=True, visibility="internal",
+      constraint=lambda: self.element.copyable or self.element.moveable, brief="Plant a verified-absent element into the tree (internal)") as m:
+      _insert = self.element.move if self.element.moveable else self.element.copy
+      m.code = f"""
+        {self.node}* n;
+        {self.node}* parent;
+        {self.node}* curr;
+        int order = 0;
+        assert(target);
+        parent = NULL;
+        curr = target->root;
+        while(curr) {{
+          order = {self.element.compare(curr_element, m.element)};
+          if(order == 0) return 0;
+          parent = curr;
+          curr = order > 0 ? curr->left : curr->right;
+        }}
+        n = {self.memory.allocate(self.node)};
+        assert(((size_t)n & 3) == 0);
+        {_insert(node_element, m.element)};
+        n->left = n->right = NULL;
+        n->parent = ((size_t)parent) | 0;
+        if(!parent) target->root = n;
+        else if(order > 0) parent->left = n;
+        else parent->right = n;
+        ++target->size;
+        {self.rebalance_insert(m.target, "n")};
         return 1;
       """
 
@@ -259,7 +301,6 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
         {self.node}* n;
         {self.node}* parent;
         {self.node}* curr;
-        {self.node}* p;
         int order = 0;
         assert(target);
         n = {self.memory.allocate(self.node)};
@@ -283,82 +324,7 @@ class Set(_StructRenderer, metac.set.Set, Ordered):
         else if(order > 0) parent->left = n;
         else parent->right = n;
         ++target->size;
-
-        /* Rebalance: bottom-up balance factor adjustment */
-        curr = n;
-        p = parent;
-        while(p) {{
-          int p_bf = (int)(p->parent & 3);
-          if(curr == p->left) {{
-            if(p_bf == 1) {{
-              p->parent = (p->parent & ~(size_t)3) | 0;
-              break;
-            }} else if(p_bf == 0) {{
-              p->parent = (p->parent & ~(size_t)3) | 2;
-              curr = p;
-              p = ({self.node}*)(p->parent & ~(size_t)3);
-            }} else {{
-              {self.node}* b = p->left;
-              int b_bf = (int)(b->parent & 3);
-              if(b_bf == 2) {{
-                {self.rotate_right(m.target, "p")};
-                p->parent = (p->parent & ~(size_t)3) | 0;
-                b->parent = (b->parent & ~(size_t)3) | 0;
-              }} else {{
-                {self.rotate_left(m.target, "b")};
-                {self.rotate_right(m.target, "p")};
-                {self.node}* c = b->parent & ~(size_t)3 ? ({self.node}*)(b->parent & ~(size_t)3) : target->root;
-                int c_bf = (int)(c->parent & 3);
-                if(c_bf == 2) {{
-                  p->parent = (p->parent & ~(size_t)3) | 1;
-                  b->parent = (b->parent & ~(size_t)3) | 0;
-                }} else if(c_bf == 1) {{
-                  p->parent = (p->parent & ~(size_t)3) | 0;
-                  b->parent = (b->parent & ~(size_t)3) | 2;
-                }} else {{
-                  p->parent = (p->parent & ~(size_t)3) | 0;
-                  b->parent = (b->parent & ~(size_t)3) | 0;
-                }}
-                c->parent = (c->parent & ~(size_t)3) | 0;
-              }}
-              break;
-            }}
-          }} else {{
-            if(p_bf == 2) {{
-              p->parent = (p->parent & ~(size_t)3) | 0;
-              break;
-            }} else if(p_bf == 0) {{
-              p->parent = (p->parent & ~(size_t)3) | 1;
-              curr = p;
-              p = ({self.node}*)(p->parent & ~(size_t)3);
-            }} else {{
-              {self.node}* b = p->right;
-              int b_bf = (int)(b->parent & 3);
-              if(b_bf == 1) {{
-                {self.rotate_left(m.target, "p")};
-                p->parent = (p->parent & ~(size_t)3) | 0;
-                b->parent = (b->parent & ~(size_t)3) | 0;
-              }} else {{
-                {self.rotate_right(m.target, "b")};
-                {self.rotate_left(m.target, "p")};
-                {self.node}* c = b->parent & ~(size_t)3 ? ({self.node}*)(b->parent & ~(size_t)3) : target->root;
-                int c_bf = (int)(c->parent & 3);
-                if(c_bf == 1) {{
-                  p->parent = (p->parent & ~(size_t)3) | 2;
-                  b->parent = (b->parent & ~(size_t)3) | 0;
-                }} else if(c_bf == 2) {{
-                  p->parent = (p->parent & ~(size_t)3) | 0;
-                  b->parent = (b->parent & ~(size_t)3) | 1;
-                }} else {{
-                  p->parent = (p->parent & ~(size_t)3) | 0;
-                  b->parent = (b->parent & ~(size_t)3) | 0;
-                }}
-                c->parent = (c->parent & ~(size_t)3) | 0;
-              }}
-              break;
-            }}
-          }}
-        }}
+        {self.rebalance_insert(m.target, "n")};
         return 1;
       """
 

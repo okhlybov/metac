@@ -46,3 +46,23 @@ x.unit(f"{type.pop}(): pop returns the lexicographically greatest strings", f"""
   {cstring.destroy("v")};
   TEST_TRUE( {type.empty(t)} );
 """)
+
+x.unit(f"{type.push}(): grow buffer with owning cstring elements", f"""
+  {type.create(t)};
+  int i;
+  for(i = 0; i < 20; ++i) {{
+    char buf[16];
+    snprintf(buf, sizeof(buf), "str_%02d", i);
+    {type.push(t, "buf")};
+  }}
+  TEST_EQUAL( {type.size(t)}, 20 );
+  for(i = 19; i >= 0; --i) {{
+    char* v;
+    char expected[16];
+    snprintf(expected, sizeof(expected), "str_%02d", i);
+    v = {type.pop(t)};
+    TEST_EQUAL_CHARS( v, expected );
+    {cstring.destroy("v")};
+  }}
+  TEST_TRUE( {type.empty(t)} );
+""")

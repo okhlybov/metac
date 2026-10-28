@@ -140,6 +140,17 @@ class Vector(_StructRenderer, Assignable, Sortable, Sequential, Insertable):
         ++target->size;
       """
 
+    # Ownership-transferring counterpart of push - moves the caller's element into
+    # the fresh back slot, sparing the deep copy for the movable element types
+    with self.method(None, ("push", "move"), {"target": inout(self), "element": inout(self.element)}, hidden=True, visibility="internal",
+      constraint=lambda: self.element.moveable, references=(self.extend,), brief="Move element to back (internal)") as m:
+      m.code = lambda m: f"""
+        assert(target);
+        {self.extend(m.target)};
+        {self.element.move(self.element.variable(f"target->chunks[target->size >> {self.chunk_shift}][target->size & {self.chunk_mask}]"), m.element)};
+        ++target->size;
+      """
+
     with self.method(None, ("emplace", "back"), {"target": inout(self)} | self.element.constructor_parameters,
       constraint=lambda: self.element.emplaceable,
       references=(self.extend,),

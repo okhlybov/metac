@@ -65,6 +65,7 @@ class Set(_StructRenderer, metac.set.Set, Hashed):
         assert(target);
         assert(capacity > 0);
         target->size = 0;
+        target->tombstones = 0;
         target->capacity = _metac_ceil_power2(capacity);
         assert(!(target->capacity & (target->capacity - 1))); /* verify the capacity is a power of 2 */
         {target_elements} = {self.memory.allocate(self.slot, "target->capacity")};
@@ -76,7 +77,7 @@ class Set(_StructRenderer, metac.set.Set, Hashed):
       m.inline_code = f"""
         assert(target);
         target->elements = NULL;
-        target->capacity = target->size = 0;
+        target->capacity = target->size = target->tombstones = 0;
       """
 
     with self.method(None, ("create", "capacity"), {"target": out(self), "capacity": std.size_t}, hidden=True, visibility="internal",
@@ -170,7 +171,14 @@ class Set(_StructRenderer, metac.set.Set, Hashed):
         abort(); /* not finding a suitable empty slot is a fatal error */
       """
 
-    with self.method(None, "resize", {"target": inout(self), "new_size": std.size_t}, hidden=True, constraint=lambda: self.element.copyable, brief="Resize hash table (internal)") as m:
+    with self.method(None, "resize", {"target": inout(self), "new_size": std.size_t}, hidden=True, constraint=lambda: self.element.copyable or self.element.moveable, brief="Resize hash table (internal)") as m:
+      # The movable elements migrate by the O(1) move, the immovable ones by the copy -
+      # the subsequent destroy of the old table discards the moved-from default states
+      _replant = (
+        f"{self.element.move(self.locate_slot(_target, '&_index', target_element), target_element)};"
+        if self.element.moveable else
+        f"{self.element.copy(self.locate_slot(_target, '&_index', target_element), target_element)};"
+      )
       m.code = f"""
         {_target.definition};
         size_t index, _index, new_capacity;
@@ -179,12 +187,15 @@ class Set(_StructRenderer, metac.set.Set, Hashed):
         if(new_capacity < target->capacity && new_capacity < (size_t)(target->size/{self.capacity_threshold})) new_capacity = target->capacity; /* prevent the new capacity to fall below minimum required for original set's elements */
         if(new_capacity < 8) new_capacity = 8; /* enforce minimum viable capacity */
         assert(target->size <= new_capacity); /* require the new capacity to be large enough for the set to contain all original elements */
-        if(new_capacity != target->capacity) {{
+        /* The probe chains terminate at empty slots only, so a table saturated with tombstones
+           degrades the lookups to the full table scan - the tombstones pushing the occupancy
+           over the threshold trigger the compaction rehash at the (possibly same) capacity */
+        if(new_capacity != target->capacity || (target->tombstones && target->size + target->tombstones >= (size_t)(target->capacity*{self.capacity_threshold}))) {{
           {self.create_capacity(_target, "new_capacity")};
           if(target->elements) {{
             for(index = 0; index < target->capacity; ++index) {{
               if({self.slot.primed(target_slot)}) {{
-                {self.element.copy(self.locate_slot(_target, "&_index", target_element), target_element)}; /* direct planting in order to prevent from triggering the subsequent resizings */
+                {_replant} /* direct planting in order to prevent from triggering the subsequent resizings */
               }}
             }}
             _target.size = target->size;
@@ -237,33 +248,50 @@ class Set(_StructRenderer, metac.set.Set, Hashed):
         assert({self.is_element(m.element)});
         if(!{self.contains(m.target, m.element)}) {{
           {self.resize(m.target, "target->size+1")};
-          {self.element.copy(self.locate_slot(m.target, "&index", m.element), m.element)};
+          {self.locate_slot(m.target, "&index", m.element)};
+          if(!{self.slot.empty(target_slot)}) --target->tombstones; /* planting over a tombstone consumes it */
+          {self.element.copy(target_element, m.element)};
           ++target->size;
           return 1;
         }} else return 0;
+      """
+
+    # Insertion of an element whose absence has already been verified by the caller:
+    # skips the redundant membership probe and moves the source into the located slot
+    # when the element type is movable, sparing the deep copy (and enabling the
+    # moveable-but-not-copyable elements for the map-level set()/emplace() callers)
+    with self.method(None, "plant", {"target": inout(self), "element": inout(self.element)}, hidden=True, visibility="internal",
+      constraint=lambda: self.element.copyable or self.element.moveable, brief="Plant a verified-absent element into the table (internal)") as m:
+      _move_or_copy = self.element.move if self.element.moveable else self.element.copy
+      m.code = lambda m: f"""
+        size_t index;
+        assert(target);
+        assert({self.is_element(m.element)});
+        {self.resize(m.target, "target->size+1")};
+        {self.locate_slot(m.target, "&index", m.element)};
+        if(!{self.slot.empty(target_slot)}) --target->tombstones; /* planting over a tombstone consumes it */
+        {_move_or_copy(target_element, m.element)};
+        ++target->size;
       """
 
     with self.emplace as m:
       create_args = [getattr(m, name) for name in self.element.constructor_parameters]
       _temp_elem = self.element.variable("temp_elem")
       _destroy_temp = f"{self.element.destroy(_temp_elem)};" if self.element.destructible else ""
-      _move_or_copy = self.element.move if self.element.moveable else self.element.copy
       m.code = lambda m: f"""
-        size_t index;
         {_temp_elem.definition};
         assert(target);
         {self.element.create(_temp_elem, *create_args)};
         if(!{self.contains(m.target, _temp_elem)}) {{
-          {self.resize(m.target, "target->size+1")};
-          {_move_or_copy(self.locate_slot(m.target, "&index", _temp_elem), _temp_elem)};
-          ++target->size;
+          {self.plant(m.target, _temp_elem)};
+          {_destroy_temp}
           return 1;
         }} else {{
           {_destroy_temp}
           return 0;
         }}
       """
-    
+
     with self.remove as m:
       m.code = f"""
         size_t index;
@@ -271,6 +299,7 @@ class Set(_StructRenderer, metac.set.Set, Hashed):
         assert({self.is_element(m.element)});
         if({self.locate_element(m.target, "&index", m.element)}) {{
           {self.slot.set_state(target_slot, 1)};
+          ++target->tombstones;
           --target->size;
           return 1;
         }} else return 0;
@@ -296,6 +325,7 @@ class Set(_StructRenderer, metac.set.Set, Hashed):
         target->elements = source->elements;
         target->capacity = source->capacity;
         target->size = source->size;
+        target->tombstones = source->tombstones;
         {self.create(m.source)};
       """
 
@@ -323,6 +353,7 @@ class Set(_StructRenderer, metac.set.Set, Hashed):
         {self.slot}* elements; /**< @private */
         {std.size_t} capacity; /**< @private */
         {std.size_t} size; /**< @private */
+        {std.size_t} tombstones; /**< @private */
       }};
     """)
 

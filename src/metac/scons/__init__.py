@@ -1,5 +1,6 @@
 import os
 import sys
+import pathlib
 import subprocess
 import metac.module
 
@@ -35,13 +36,9 @@ else:
 if "Return" in globals():
   Return("HEADER SOURCES OBJECTS")
 """
-    try:
-      with open(scons_file, "r") as f:
-        if not f.read() == contents:
-          raise Exception()
-    except Exception:
-      with open(scons_file, "w") as f:
-        f.write(contents)
+    p = pathlib.Path(scons_file)
+    if not p.exists() or p.read_text() != contents:
+      p.write_text(contents)
 
   def __enter__(self):
     self.__context = metac.module._build_context
