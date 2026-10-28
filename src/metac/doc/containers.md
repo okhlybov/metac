@@ -12,7 +12,7 @@ import in your module script; the *type* is the class you instantiate with a con
 | `metac.deque` | `Deque` | `Deque<T>` | `Deque<T>::Range` (bidirectional) | doubly linked; both ends are `O(1)` |
 | `metac.vector` | `Vector` | `Vector<T>` | `Vector<T>::Range` (direct access) | contiguous dynamic storage, amortized `O(1)` push/pop, indexed access, sorting and binary search; optional inline capacity for small buffer optimization |
 | `metac.array` | `Array` | `Array<T, N>` | `Array<T, N>::Range` (direct access) | fixed size, stack-allocated contiguous C array, zero heap allocation |
-| `metac.packet` | `Packet` | `Packet<T, N>` | `Packet<T, N>::Range` (direct access) | fixed capacity, stack-allocated, zero heap allocation; vector-like packet backed by a variant of tuple records |
+| `metac.packet` | `Packet` | `Packet<T, N>` | `Packet<T, N>::Range` (direct access) | fixed capacity, stack-allocated, zero heap allocation; vector-like packet backed by a bounded C array |
 | `metac.circular_buffer` | `Static`, `Dynamic` | `StaticCircularBuffer<T>`, `DynamicCircularBuffer<T>` | `StaticCircularBuffer<T>::Range`, `DynamicCircularBuffer<T>::Range` (direct access) | stack or heap-allocated circular ring buffer |
 | `metac.tiered_vector` | `Vector` | `TieredVector<T>` | `TieredVector<T>::Range` (direct access) | chunked; amortized `O(1)` append with stable addresses |
 | `metac.stack` | `Stack` | `Stack<T>` | `Stack<T>::Range` (forward) | LIFO adapter over the list |

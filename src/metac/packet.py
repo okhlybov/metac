@@ -1,7 +1,7 @@
 import metac.std as std
+from metac.hash import XorRot
 from metac.assignable import Assignable
-from metac.record import Record
-from metac.variant import Variant
+from metac.sortable import Sortable
 from metac.sequential import Sequential
 from metac.insertable import Insertable
 from metac.range import DirectAccess
@@ -10,41 +10,15 @@ from metac.core import out, inout, Callable, Indirection, _StructRenderer
 
 
 #
-class Packet(_StructRenderer, Assignable, Sequential, Insertable):
-  # Not Sortable: the tagged-union storage addresses elements through named tuple fields
-  # (s<N>._i), so no addressable expression exists for a runtime index - the bisection
-  # handler protocol (_element(target, index)) cannot be honored without a storage
-  # redesign or a function-returning-pointer accessor extension
+class Packet(_StructRenderer, Assignable, Sortable, Sequential, Insertable):
 
   brief = "Fixed-capacity stack-allocated direct access sequence container"
 
-  def __init__(self, name, element, capacity, *args, index=std.size_t, **kwargs):
+  def __init__(self, name, element, capacity, *args, index=std.size_t, sorting_operations=True, hasher=XorRot(), dependencies=(), **kwargs):
     self._capacity = int(capacity)
     if self._capacity < 1:
       raise ValueError(f"Capacity must be at least 1, got {self._capacity}")
-    super().__init__(name, element, index, *args, **kwargs)
-
-    self.tuples = []
-    for k in range(1, self._capacity + 1):
-      fields = {f"_{i}": self.element for i in range(k)}
-      t_k = Record(
-        self._decorate_component(f"tuple_{k}", abbreviate=False),
-        fields,
-        visibility="internal",
-        getters=False,
-        setters=False,
-        opaque=False
-      )
-      self.tuples.append(t_k)
-      self.dependencies.add(t_k)
-
-    alternatives = {f"s{k}": self.tuples[k - 1] for k in range(1, self._capacity + 1)}
-    self._variant = Variant(
-      self._decorate_component("variant", abbreviate=False),
-      alternatives,
-      visibility="internal"
-    )
-    self.dependencies.add(self._variant)
+    super().__init__(name, element, index, *args, sorting_operations=sorting_operations, hasher=hasher, dependencies=(*dependencies, std.assert_h, std.string_h), **kwargs)
     self.range = Range(self)
 
   @property
@@ -52,69 +26,85 @@ class Packet(_StructRenderer, Assignable, Sequential, Insertable):
     return True
 
   @property
+  def default_constructible(self):
+    return True
+
+  @property
   def destructible(self):
-    return self._variant.destructible
+    return self.element.destructible
 
   @property
   def copyable(self):
-    return self._variant.copyable
+    return self.element.copyable
 
   @property
   def moveable(self):
-    return self._variant.moveable
+    return self.element.moveable
 
   @property
   def swappable(self):
-    return self._variant.swappable
-
-  @property
-  def hashable(self):
-    return self._variant.hashable
+    return self.element.swappable
 
   @property
   def comparable(self):
-    return self._variant.comparable
+    return self.element.comparable
 
   @property
   def orderable(self):
     return False
+
+  @property
+  def hashable(self):
+    return self.element.hashable
+
+  @property
+  def zero_initializable(self):
+    return True
+
+  def _element(self, target, index):
+    return self.element.variable(f"{target}->elements[{index}]")
+
+  def _target_size(self, target):
+    return f"{target}->size"
+
+  def _render_struct(self, stream, header):
+    super()._render_struct(stream, header)
+    stream.append(f"""
+      struct {self.name} {{
+        {self.element} elements[{self._capacity}]; /**< @private */
+        size_t size; /**< @private */
+      }};
+    """)
 
   def __setup__(self):
     super().__setup__()
 
     self.description = f"""
       Fixed-capacity direct access sequence container with maximum capacity of {self._capacity} elements.
-      Allocates no dynamic heap memory, storing elements inline in an internal tagged union.
-      Requires the element type (@ref {self.element}) to be *Copyable*.
-      Supports two-way element traversal via the corresponding @ref {self.range} iterator
-      as well as subranging with direct indexed access to the subrange's elements.
+      Allocates no dynamic heap memory, storing elements inline in a contiguous C array.
+      Supports bidirectional element traversal via the corresponding @ref {self.range} iterator
+      as well as direct indexed access, sorting, and binary search over its elements.
 
-      Implemented as a tagged union over internal tuple records of length 1 to {self._capacity}.
       The closest C++ equivalent is [std::inplace_vector<>](https://en.cppreference.com/w/cpp/container/inplace_vector) (C++26)
       or [boost::container::static_vector<>](https://www.boost.org/doc/libs/release/doc/html/container/non_standard_containers.html#container.non_standard_containers.static_vector).
     """
 
-    _target = self._variant.variable("target->variant")
-    _source = self._variant.variable("source->variant")
-    _left = self._variant.variable("left->variant")
-    _right = self._variant.variable("right->variant")
+    target_i = self.element.variable("target->elements[index]")
+    source_i = self.element.variable("source->elements[index]")
+    left_i = self.element.variable("left->elements[index]")
+    right_i = self.element.variable("right->elements[index]")
+    destroy_i = f"{self.element.destroy(target_i)};" if self.element.destructible else ""
 
     with self.empty as m:
       m.inline_code = f"""
         assert(target);
-        return target->variant.tag < 0;
+        return target->size == 0;
       """
 
     with self.size as m:
       m.inline_code = f"""
         assert(target);
-        return (size_t)(target->variant.tag + 1);
-      """
-
-    with self.indexed as m:
-      m.inline_code = f"""
-        assert(target);
-        return {m.index} < (size_t)(target->variant.tag + 1);
+        return target->size;
       """
 
     with self.method(self.index, "capacity", {"target": self}, brief="Get maximum capacity of static vector",
@@ -129,94 +119,172 @@ class Packet(_StructRenderer, Assignable, Sequential, Insertable):
         return {self._capacity};
       """
 
+    with self.method("int", "full", {"target": self}, brief="Check if static vector is at maximum capacity",
+      description="""
+        Checks whether the number of elements in the static vector has reached its capacity.
+
+        @param[in] target the static vector to inspect
+        @return non-zero if full, zero otherwise
+      """) as m:
+      m.inline_code = f"""
+        assert(target);
+        return target->size == {self._capacity};
+      """
+
+    with self.indexed as m:
+      m.inline_code = f"""
+        assert(target);
+        return {m.index} < target->size;
+      """
+
     with self.create as m:
       m.inline_code = f"""
         assert(target);
-        {self._variant.create(_target)};
+        target->size = 0;
       """
+
+    with self.method(None, ("create", "size"), {"target": out(self), "size": self.index},
+      constraint=lambda: self.element.default_constructible or self.element.zero_initializable,
+      brief="Create static vector with the given number of default-initialized elements",
+      description="""
+        Creates the static vector holding exactly the given number of default-initialized elements.
+        The size must not exceed the capacity.
+
+        @param[out] target the static vector to construct
+        @param[in] size the number of default-initialized elements to create
+      """) as m:
+      if self.element.zero_initializable:
+        m.code = f"""
+          assert(target);
+          assert({m.size} <= {self._capacity});
+          target->size = {m.size};
+          memset(target->elements, 0, {m.size} * sizeof(target->elements[0]));
+        """
+      else:
+        m.code = f"""
+          size_t index;
+          assert(target);
+          assert({m.size} <= {self._capacity});
+          target->size = {m.size};
+          for(index = 0; index < {m.size}; ++index) {{
+            {self.element.create(target_i)};
+          }}
+        """
 
     if self.destructible:
       with self.destroy as m:
         m.code = f"""
+          size_t index;
           assert(target);
-          {self._variant.destroy(_target)};
+          for(index = 0; index < target->size; ++index) {{
+            {self.element.destroy(target_i)};
+          }}
         """
 
     with self.copy as m:
-      m.code = f"""
+      m.code = lambda m: f"""
+        size_t index;
         assert(target);
         assert(source);
-        {self._variant.copy(_target, _source)};
+        if(target == source) return;
+        target->size = source->size;
+        for(index = 0; index < source->size; ++index) {{
+          {self.element.copy(target_i, source_i)};
+        }}
       """
 
     with self.move as m:
-      m.code = f"""
+      move_elem = f"{self.element.move(target_i, source_i)};" if self.element.moveable else f"{self.element.copy(target_i, source_i)}; {self.element.destroy(source_i) if self.element.destructible else ''}"
+      m.code = lambda m: f"""
+        size_t index;
         assert(target);
         assert(source);
-        {self._variant.move(_target, _source)};
+        if(target == source) return;
+        target->size = source->size;
+        for(index = 0; index < source->size; ++index) {{
+          {move_elem}
+        }}
+        source->size = 0;
       """
 
-    with self.equal as m:
+    with self.swap as m:
+      move_left_to_right = f"{self.element.move(right_i, left_i)};" if self.element.moveable else f"{self.element.copy(right_i, left_i)}; {self.element.destroy(left_i) if self.element.destructible else ''}"
+      move_right_to_left = f"{self.element.move(left_i, right_i)};" if self.element.moveable else f"{self.element.copy(left_i, right_i)}; {self.element.destroy(right_i) if self.element.destructible else ''}"
       m.code = f"""
+        size_t index, min_size, temp_size;
         assert(left);
         assert(right);
-        return {self._variant.equal(_left, _right)};
-      """
-
-    with self.hash as m:
-      m.code = f"""
-        assert(target);
-        return {self._variant.hash(_target)};
+        if(left == right) return;
+        min_size = left->size < right->size ? left->size : right->size;
+        for(index = 0; index < min_size; ++index) {{
+          {self.element.swap(left_i, right_i)};
+        }}
+        if(left->size > right->size) {{
+          for(index = min_size; index < left->size; ++index) {{
+            {move_left_to_right}
+          }}
+        }} else if(right->size > left->size) {{
+          for(index = min_size; index < right->size; ++index) {{
+            {move_right_to_left}
+          }}
+        }}
+        temp_size = left->size;
+        left->size = right->size;
+        right->size = temp_size;
       """
 
     with self.get as m:
       result = m.result.variable("result")
-      cases = []
-      for i in range(self._capacity):
-        slot = f"target->variant.value.s{self._capacity}._{i}"
-        slot_var = self.element.variable(slot)
-        cases.append(f"case {i}: {{{self.element.copy(result, slot_var)};}} break;")
-      m.inline_code = f"""
+      m.inline_code = lambda m: f"""
         {result.definition};
         assert(target);
         assert({self.indexed(m.target, m.index)});
-        switch({m.index}) {{
-          {" ".join(cases)}
-        }}
+        {self.element.copy(result, self._element(m.target, m.index))};
         return {result};
       """
 
     with self.view as m:
-      cases = []
-      for i in range(self._capacity):
-        slot = f"target->variant.value.s{self._capacity}._{i}"
-        slot_var = self.element.variable(slot)
-        cases.append(f"case {i}: return {slot_var.bind(m.result)};")
-      m.inline_code = f"""
+      m.inline_code = lambda m: f"""
         assert(target);
         assert({self.indexed(m.target, m.index)});
-        switch({m.index}) {{
-          {" ".join(cases)}
-        }}
-        return ({self.element.view_type})NULL;
+        return {self._element(m.target, m.index).bind(m.result)};
       """
 
     with self.set as m:
-      cases = []
-      for i in range(self._capacity):
-        slot = f"target->variant.value.s{self._capacity}._{i}"
-        slot_var = self.element.variable(slot)
-        destroy_stmt = f"{self.element.destroy(slot_var)};" if self.element.destructible else ""
-        cases.append(f"case {i}: {{{destroy_stmt} {self.element.copy(slot_var, m.element)};}} break;")
-      m.inline_code = f"""
-        assert(target);
-        assert({self.indexed(m.target, m.index)});
-        switch({m.index}) {{
-          {" ".join(cases)}
-        }}
-      """
+      def _set(m):
+        slot = self._element(m.target, m.index)
+        destroy_slot = f"{self.element.destroy(slot)};" if self.element.destructible else ""
+        return f"""
+          assert(target);
+          assert({self.indexed(m.target, m.index)});
+          {destroy_slot}
+          {self.element.copy(slot, m.element)};
+        """
+      m.inline_code = _set
 
-    with self.method(None, "push", {"target": inout(self), "element": self.element}, constraint=lambda: self.element.copyable, brief="Add element to back of static vector",
+    with self.method(None, "emplace", {"target": inout(self), "index": self.index} | self.element.constructor_parameters,
+      constraint=lambda: self.element.emplaceable, brief="Construct the element at index in place",
+      description="""
+        Constructs the element in place with the forwarded parameters, associating it with
+        the index - the element previously held at the index is destroyed first.
+
+        @param[in,out] target the static vector to update
+        @param[in] index the index to construct the element at
+      """) as m:
+      def _emplace_code(m):
+        create_args = [getattr(m, name) for name in self.element.constructor_parameters]
+        slot = self._element(m.target, m.index)
+        destroy_slot = f"{self.element.destroy(slot)};" if self.element.destructible else ""
+        return f"""
+          assert(target);
+          assert({self.indexed(m.target, m.index)});
+          {destroy_slot}
+          {self.element.create(slot, *create_args)};
+        """
+      m.code = _emplace_code
+
+    with self.method(None, "push", {"target": inout(self), "element": self.element},
+      constraint=lambda: self.element.copyable, brief="Add element to back of static vector",
       description="""
         Appends the element to the back of the static vector in O(1). Asserts that the vector
         has not reached its maximum capacity.
@@ -224,18 +292,11 @@ class Packet(_StructRenderer, Assignable, Sequential, Insertable):
         @param[in,out] target the static vector to add to
         @param[in] element the element to push to the back
       """) as m:
-      cases = []
-      for i in range(self._capacity):
-        slot = f"target->variant.value.s{i+1}._{i}"
-        slot_var = self.element.variable(slot)
-        cases.append(f"case {i}: {{{self.element.copy(slot_var, m.element)};}} break;")
-      m.inline_code = f"""
+      m.inline_code = lambda m: f"""
         assert(target);
-        assert(target->variant.tag + 1 < {self._capacity});
-        switch(target->variant.tag + 1) {{
-          {" ".join(cases)}
-        }}
-        ++target->variant.tag;
+        assert(target->size < {self._capacity});
+        {self.element.copy(self.element.variable("target->elements[target->size]"), m.element)};
+        ++target->size;
       """
 
     with self.method(None, ("emplace", "back"), {"target": inout(self)} | self.element.constructor_parameters,
@@ -246,21 +307,19 @@ class Packet(_StructRenderer, Assignable, Sequential, Insertable):
 
         @param[in,out] target the static vector to add to
       """) as m:
-      create_args = [getattr(m, name) for name in self.element.constructor_parameters]
-      cases = []
-      for i in range(self._capacity):
-        slot = f"target->variant.value.s{i+1}._{i}"
-        slot_var = self.element.variable(slot)
-        cases.append(f"case {i}: {{{self.element.create(slot_var, *create_args)};}} break;")
-      m.inline_code = f"""
-        assert(target);
-        assert(target->variant.tag + 1 < {self._capacity});
-        switch(target->variant.tag + 1) {{
-          {" ".join(cases)}
-        }}
-        ++target->variant.tag;
-      """
-    self.macro("emplace", None, {"target": inout(self)} | self.element.constructor_parameters, lambda target, *args: self.emplace_back(target, *args),
+      def _emplace_back(m):
+        create_args = [getattr(m, name) for name in self.element.constructor_parameters]
+        slot = self.element.variable("target->elements[target->size]")
+        return f"""
+          assert(target);
+          assert(target->size < {self._capacity});
+          {self.element.create(slot, *create_args)};
+          ++target->size;
+        """
+      m.inline_code = _emplace_back
+
+    self.macro("emplace", None, {"target": inout(self)} | self.element.constructor_parameters,
+      lambda target, *args: self.emplace_back(target, *args),
       constraint=lambda: self.element.emplaceable, brief="Construct element in-place at back (synonym for emplace_back)")
 
     with self.method(self.element, "pop", {"target": inout(self)}, constraint=lambda: self.element.moveable, brief="Remove and return element from back of static vector",
@@ -271,20 +330,13 @@ class Packet(_StructRenderer, Assignable, Sequential, Insertable):
         @return the removed back element
       """) as m:
       result = m.result.variable("result")
-      cases = []
-      for i in range(self._capacity):
-        slot = f"target->variant.value.s{i+1}._{i}"
-        slot_var = self.element.variable(slot)
-        destroy_stmt = f"{self.element.destroy(slot_var)};" if self.element.destructible else ""
-        cases.append(f"case {i}: {{{self.element.move(result, slot_var)};}} break;")
+      last_slot = self.element.variable("target->elements[target->size]")
       m.inline_code = f"""
         {result.definition};
         assert(target);
-        assert(target->variant.tag >= 0);
-        switch(target->variant.tag) {{
-          {" ".join(cases)}
-        }}
-        --target->variant.tag;
+        assert(target->size > 0);
+        --target->size;
+        {self.element.move(result, last_slot)};
         return {result};
       """
 
@@ -295,42 +347,31 @@ class Packet(_StructRenderer, Assignable, Sequential, Insertable):
         return 1;
       """
 
-    remove_cases = []
-    for i in range(self._capacity):
-      slot_i = self.element.variable(f"target->variant.value.s{self._capacity}._{i}")
-      destroy_slot = f"{self.element.destroy(slot_i)};" if self.element.destructible else ""
-      shift_stmts = []
-      for j in range(i, self._capacity - 1):
-        curr_slot = self.element.variable(f"target->variant.value.s{self._capacity}._{j}")
-        next_slot = self.element.variable(f"target->variant.value.s{self._capacity}._{j + 1}")
-        dest_next = f"{self.element.destroy(next_slot)};" if self.element.destructible else ""
-        shift_op = (
-          f"{self.element.move(curr_slot, next_slot)};"
-          if self.element.moveable else
-          f"{self.element.copy(curr_slot, next_slot)}; {dest_next}"
-        )
-        shift_stmts.append(f"if({j} < target->variant.tag) {{ {shift_op} }}")
-      shift_code = " ".join(shift_stmts)
-      remove_cases.append(f"""case {i}:
-        if({self.element.equal(slot_i, m.element)}) {{
-          {destroy_slot}
-          {shift_code}
-          --target->variant.tag;
-          return 1;
-        }}
-        break;""")
-
+    target_next_i = self.element.variable("target->elements[index + 1]")
     with self.remove as m:
-      m.code = lambda m: f"""
-        int i;
-        assert(target);
-        for(i = 0; i <= target->variant.tag; ++i) {{
-          switch(i) {{
-            {" ".join(remove_cases)}
+      def _remove(m):
+        destroy_next = f"{self.element.destroy(target_next_i)};" if self.element.destructible else ""
+        move_shift = (
+          f"{self.element.move(target_i, target_next_i)};"
+          if self.element.moveable else
+          f"{self.element.copy(target_i, target_next_i)}; {destroy_next}"
+        )
+        return f"""
+          size_t index;
+          assert(target);
+          for(index = 0; index < target->size; ++index) {{
+            if({self.element.equal(target_i, m.element)}) {{
+              {destroy_i}
+              for(; index + 1 < target->size; ++index) {{
+                {move_shift}
+              }}
+              --target->size;
+              return 1;
+            }}
           }}
-        }}
-        return 0;
-      """
+          return 0;
+        """
+      m.code = _remove
 
     with self.method(None, "clear", {"target": inout(self)}, brief="Clear all elements from static vector",
       description="""
@@ -338,100 +379,89 @@ class Packet(_StructRenderer, Assignable, Sequential, Insertable):
 
         @param[in,out] target the static vector to clear
       """) as m:
-      destroy_stmt = f"{self._variant.destroy(_target)};" if self.destructible else ""
+      destroy_clear = f"""for(index = 0; index < target->size; ++index) {{
+          {destroy_i}
+        }}""" if self.element.destructible else ""
       m.code = f"""
+        size_t index;
         assert(target);
-        {destroy_stmt}
-        target->variant.tag = -1;
+        {destroy_clear}
+        target->size = 0;
       """
 
-    with self.method(None, ("create", "size"), {"target": out(self), "size": self.index}, constraint=lambda: self.element.default_constructible or self.element.zero_initializable, brief="Create static vector with the given number of default-initialized elements",
+    with self.method(self.element, "front", {"target": self}, constraint=lambda: self.element.copyable,
+      references=(self.get,),
+      brief="Get a copy of the front element",
       description="""
-        Creates the static vector holding exactly the given number of default-initialized elements.
-        The size must not exceed the capacity.
+        Returns a copy of the first element in the static vector. The vector must not be empty.
 
-        @param[out] target the static vector to construct
-        @param[in] size the number of default-initialized elements to create
+        @param[in] target the static vector to read from
+        @return a copy of the first element
       """) as m:
-      cases = []
-      for k in range(1, self._capacity + 1):
-        tuple_k = self.tuples[k - 1]
-        tuple_var = tuple_k.variable(f"target->variant.value.s{k}")
-        cases.append(f"case {k-1}: {{{tuple_k.create(tuple_var)};}} break;")
-      m.code = f"""
+      m.inline_code = lambda m: f"""
         assert(target);
-        assert({m.size} <= {self._capacity});
-        if({m.size} == 0) {{
-          target->variant.tag = -1;
-        }} else {{
-          target->variant.tag = (int){m.size} - 1;
-          switch(target->variant.tag) {{
-            {" ".join(cases)}
-          }}
-        }}
+        assert(!{self.empty(m.target)});
+        return {self.get(m.target, 0)};
       """
 
-    with self.method(self.element, "front", {"target": self}, constraint=lambda: self.element.copyable, brief="Get copy of front element",
+    with self.method(self.element.view_type, ("front", "view"), {"target": self},
+      references=(self.view,),
+      brief="Get a constant view of the front element",
       description="""
-        Returns a copy of the front element in O(1). The static vector must not be empty.
+        Returns a constant view of the first element in the static vector without copying it.
+        The vector must not be empty.
 
-        @param[in] target the static vector to read
-        @return a copy of the front element
+        @param[in] target the static vector to read from
+        @return a constant view of the first element
       """) as m:
       m.inline_code = f"""
         assert(target);
-        assert(target->variant.tag >= 0);
-        return {self.get(m.target, "0")};
+        assert(!{self.empty(m.target)});
+        return {self.view(m.target, 0)};
       """
 
-    with self.method(self.element, "back", {"target": self}, constraint=lambda: self.element.copyable, brief="Get copy of back element",
+    with self.method(self.element, "back", {"target": self}, constraint=lambda: self.element.copyable,
+      references=(self.get,),
+      brief="Get a copy of the back element",
       description="""
-        Returns a copy of the back element in O(1). The static vector must not be empty.
+        Returns a copy of the last element in the static vector. The vector must not be empty.
 
-        @param[in] target the static vector to read
-        @return a copy of the back element
+        @param[in] target the static vector to read from
+        @return a copy of the last element
+      """) as m:
+      m.inline_code = lambda m: f"""
+        assert(target);
+        assert(!{self.empty(m.target)});
+        return {self.get(m.target, "target->size - 1")};
+      """
+
+    with self.method(self.element.view_type, ("back", "view"), {"target": self},
+      references=(self.view,),
+      brief="Get a constant view of the back element",
+      description="""
+        Returns a constant view of the last element in the static vector without copying it.
+        The vector must not be empty.
+
+        @param[in] target the static vector to read from
+        @return a constant view of the last element
       """) as m:
       m.inline_code = f"""
         assert(target);
-        assert(target->variant.tag >= 0);
-        return {self.get(m.target, "(size_t)target->variant.tag")};
+        assert(!{self.empty(m.target)});
+        return {self.view(m.target, "target->size - 1")};
       """
 
-    with self.method(self.element.view_type, ("front", "view"), {"target": self}, brief="Get view of front element",
+    with self.method(Indirection(self.element), "data", {"target": inout(self)}, brief="Get pointer to the underlying array",
       description="""
-        Returns a pointer to the front element in O(1) without copying it.
-        The static vector must not be empty.
+        Returns a pointer to the contiguous array storage.
 
-        @param[in] target the static vector to read
-        @return a constant view of the front element
+        @param[in,out] target the static vector to inspect
+        @return a pointer to the first element
       """) as m:
       m.inline_code = f"""
         assert(target);
-        assert(target->variant.tag >= 0);
-        return {self.view(m.target, "0")};
+        return target->elements;
       """
-
-    with self.method(self.element.view_type, ("back", "view"), {"target": self}, brief="Get view of back element",
-      description="""
-        Returns a pointer to the back element in O(1) without copying it.
-        The static vector must not be empty.
-
-        @param[in] target the static vector to read
-        @return a constant view of the back element
-      """) as m:
-      m.inline_code = f"""
-        assert(target);
-        assert(target->variant.tag >= 0);
-        return {self.view(m.target, "(size_t)target->variant.tag")};
-      """
-
-  def _render_struct(self, stream, header):
-    super()._render_struct(stream, header)
-    stream.append(f"""
-      struct {self.name} {{
-        {self._variant.variable("variant").definition}; /**< @private */
-      }};
-    """)
 
 
 #
@@ -464,7 +494,7 @@ class Range(_Range, DirectAccess):
         assert(iterable);
         result.iterable = iterable;
         result.front = 0;
-        result.back = (size_t)(iterable->variant.tag + 1);
+        result.back = iterable->size;
         return {result};
       """
 
@@ -499,14 +529,14 @@ class Range(_Range, DirectAccess):
       m.inline_code = lambda: f"""
         assert(target);
         assert(!{self.empty(m.target)});
-        return {self.iterable.get("target->iterable", "target->back-1")};
+        return {self.iterable.get("target->iterable", "target->back - 1")};
       """
 
     with self.back_view as m:
       m.inline_code = lambda: f"""
         assert(target);
         assert(!{self.empty(m.target)});
-        return {self.iterable.view("target->iterable", "target->back-1")};
+        return {self.iterable.view("target->iterable", "target->back - 1")};
       """
 
     with self.move_back as m:

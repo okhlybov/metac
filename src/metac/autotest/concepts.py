@@ -550,8 +550,9 @@ def emit_mapping(ctx):
                       f"TEST_EQUAL({ctx.call('size', ctx.t)}, 1);",
                       f"TEST_EQUAL({ctx.call('get', ctx.t, k0)}, 101);"]), nlocs=1)
 
-  # Mapping inherits Container.contains over the VALUE type (an LSP wart), so key
-  # presence is asserted through the index-typed indexed() alone
+  # A Mapping is a Container of elements (values) with an Indexable key shortcut:
+  # key presence is asserted through the index-typed indexed(), while Container.contains()
+  # tests element (value) membership.
   if active(T, "indexed"):
     ctx.unit("indexed(): key presence",
              "\n".join([f"{T.set(ctx.t, k0, '100')};",

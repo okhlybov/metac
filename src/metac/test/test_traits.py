@@ -535,11 +535,9 @@ class TestTraits(unittest.TestCase):
     self.assertEqual(vec._decorate_component("range", abbreviate=False, hidden=False), "my_vec_range")
     self.assertEqual(vec._decorate_component("range", abbreviate=True, hidden=False), "my_vecr")
 
-    # Packet subcomponents are private with leading underscore while range is public
+    # Packet range is public
     pkt = Packet("test_pkt", "int", 3)
     self.assertEqual(pkt.range.name, "test_pkt_range")
-    self.assertEqual(pkt._variant.name, "_test_pkt_variant")
-    self.assertEqual([t.name for t in pkt.tuples], ["_test_pkt_tuple_1", "_test_pkt_tuple_2", "_test_pkt_tuple_3"])
 
 
 # Run tests when imported or executed directly

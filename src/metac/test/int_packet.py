@@ -226,3 +226,25 @@ x.unit(f"{type.put}()/{type.remove}(): container protocol addition and removal",
   TEST_TRUE( {type.empty(t)} );
   TEST_FALSE( {type.remove(t, 30)} );
 """)
+
+x.unit(f"{type.sort}(), {type.sorted}(), {type.reverse}(): sort and reverse packet", f"""
+  {type.push(t, 40)};
+  {type.push(t, 10)};
+  {type.push(t, 30)};
+  {type.push(t, 20)};
+  TEST_FALSE( {type.sorted(t)} );
+
+  {type.sort(t)};
+  TEST_TRUE( {type.sorted(t)} );
+  TEST_EQUAL( {type.get(t, 0)}, 10 );
+  TEST_EQUAL( {type.get(t, 1)}, 20 );
+  TEST_EQUAL( {type.get(t, 2)}, 30 );
+  TEST_EQUAL( {type.get(t, 3)}, 40 );
+
+  {type.reverse(t)};
+  TEST_FALSE( {type.sorted(t)} );
+  TEST_EQUAL( {type.get(t, 0)}, 40 );
+  TEST_EQUAL( {type.get(t, 1)}, 30 );
+  TEST_EQUAL( {type.get(t, 2)}, 20 );
+  TEST_EQUAL( {type.get(t, 3)}, 10 );
+""")

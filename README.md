@@ -279,7 +279,7 @@ consumed 23
 |---|---|---|
 | `metac.vector` | `Vector` | direct-access sequence, direct-access range |
 | `metac.array` | `Array` | fixed-size stack-allocated contiguous C array, direct-access range, zero heap allocation |
-| `metac.packet` | `Packet` | fixed-capacity stack-allocated vector-like packet (tuple-record variant storage), direct-access range, zero heap allocations |
+| `metac.packet` | `Packet` | fixed-capacity stack-allocated vector-like packet (bounded C array storage), direct-access range, zero heap allocations |
 | `metac.circular_buffer` | `Static`, `Dynamic` | fixed-capacity stack or dynamic heap circular ring buffer, direct-access range, sortable (opt-out) |
 | `metac.tiered_vector` | `Vector` | chunked append-optimized direct-access buffer — amortized O(1) push, stable addresses, direct-access range |
 | `metac.list` | `List` | singly-linked sequence, forward range |
