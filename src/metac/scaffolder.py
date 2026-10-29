@@ -2,6 +2,7 @@ import os
 import pathlib
 import inspect
 import importlib.resources
+import fnmatch
 
 
 #
@@ -21,16 +22,26 @@ def make_template_reader(package=None, directory="template"):
 #
 class Scaffolder:
 
+  IGNORE_FILE = ".metacignore"
+
   def __init__(self, resources=None, parameters=None):
     self.resources = dict(resources or {})
     self.parameters = dict(parameters or {})
+    if self.IGNORE_FILE not in self.resources:
+      self.resources[self.IGNORE_FILE] = lambda _: self._default_ignore_file()
 
-  # The files belonging to the user rather than to the scaffolding: the module
-  # definition script and the main C source. Upgrade refreshes every scaffolding
-  # file but never touches these, while plain generation refuses to overwrite
-  # any existing file at all. Scaffolders whose module script is metac-owned
-  # wiring rather than user code (test suites, documentation) override this
-  # with an explicit `user_files` parameter
+  def _default_ignore_file(self):
+    module = str(self.parameters.get("module") or "")
+    if "user_files" not in self.parameters and module:
+      entries = [f"{module}.py", f"{module}.c"]
+    else:
+      entries = sorted(self.user_files)
+    return "\n".join(entries) + ("\n" if entries else "")
+
+  # The files belonging to the user rather than to the scaffolding: during
+  # project seeding, these are written to .metacignore so that subsequent
+  # upgrades leave them untouched. Users can customize .metacignore after
+  # seeding to protect additional files from upgrade.
   @property
   def user_files(self):
     override = self.parameters.get("user_files")
@@ -39,10 +50,52 @@ class Scaffolder:
     module = str(self.parameters.get("module") or "")
     return {f"{module}.py", f"{module}.c"} if module else frozenset()
 
+  @staticmethod
+  def parse_metacignore(content):
+    patterns = []
+    for line in str(content).splitlines():
+      line = line.strip()
+      if not line or line.startswith("#"):
+        continue
+      patterns.append(line)
+    return tuple(patterns)
+
+  @staticmethod
+  def matches_pattern(path_str, pattern):
+    posix_path = path_str.replace("\\", "/").lstrip("/")
+    if posix_path.startswith("./"):
+      posix_path = posix_path[2:]
+    pattern = pattern.replace("\\", "/")
+    if pattern.startswith("./"):
+      pattern = pattern[2:]
+    if pattern.endswith("/"):
+      return posix_path.startswith(pattern) or fnmatch.fnmatch(posix_path, pattern + "*")
+    if "/" in pattern:
+      return fnmatch.fnmatch(posix_path, pattern.lstrip("/"))
+    return fnmatch.fnmatch(os.path.basename(posix_path), pattern) or fnmatch.fnmatch(posix_path, pattern)
+
+  @classmethod
+  def is_ignored(cls, path_str, patterns):
+    ignored = False
+    for pattern in patterns:
+      negated = pattern.startswith("!")
+      pat = pattern[1:] if negated else pattern
+      if cls.matches_pattern(path_str, pat):
+        ignored = not negated
+    return ignored
+
   def generate(self, target=".", upgrade=False):
     path = pathlib.Path(target).resolve()
     path.mkdir(parents=True, exist_ok=True)
-    user_files = self.user_files
+    if upgrade:
+      ignore_file = path / self.IGNORE_FILE
+      if not ignore_file.is_file():
+        raise FileNotFoundError(f"Missing required '{self.IGNORE_FILE}' in {path}")
+      with open(ignore_file, "r", encoding="utf-8") as f:
+        ignore_patterns = self.parse_metacignore(f.read())
+    else:
+      ignore_patterns = ()
+
     created, refreshed, preserved, skipped = [], [], [], []
     wd = os.getcwd()
     try:
@@ -51,10 +104,12 @@ class Scaffolder:
         if not reader is None: # Override entry with value None to disable the respective file generation
           name = self.interpolate(file, self.parameters)
           exists = os.path.exists(name)
-          if upgrade and exists and os.path.basename(name) in user_files:
-            preserved.append(name)
-            continue
-          if exists and not upgrade:
+          if upgrade:
+            if name == self.IGNORE_FILE or self.is_ignored(name, ignore_patterns):
+              if exists:
+                preserved.append(name)
+              continue
+          elif exists:
             skipped.append(name)
             continue
           (refreshed if exists else created).append(name)

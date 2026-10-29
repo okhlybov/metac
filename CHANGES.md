@@ -1,5 +1,6 @@
 - Test matrix additions.
 - CMake presets fixes.
+- Scaffolder .metacignore ignore list support on project upgrade.
 - Bug fixes.
 
 # 0.0.2
