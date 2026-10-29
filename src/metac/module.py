@@ -6,6 +6,8 @@ import filecmp
 import hashlib
 import pathlib
 import types
+import heapq
+import operator
 import metac
 import metac.backend
 
@@ -73,8 +75,21 @@ class _SmartRenderer:
         os.unlink(path)
 
 
+_get_order_rank = operator.attrgetter("_order_rank")
+_get_order_key = operator.attrgetter("_order_key")
+
+
 def _sort_entities(entities):
-  return sorted(entities, key=lambda e: e._order_key)
+  it = iter(entities)
+  first = next(it, None)
+  if first is None:
+    return []
+  if first._order_rank is not None:
+    return sorted(entities, key=_get_order_rank)
+  sorted_entities = sorted(entities, key=_get_order_key)
+  for idx, e in enumerate(sorted_entities):
+    e._order_rank = idx
+  return sorted_entities
 
 
 #
@@ -286,9 +301,12 @@ class Module:
         self.source_count = int((total_complexity / self.source_threshold) + 0.999)  # ceil
     # Allow to disable sources rendering by setting source_count to 0
     if self.source_count > 0:
+      heap = [(s.complexity, s.index, s) for s in self.sources]
+      heapq.heapify(heap)
       for e in _sort_entities(self.total_entities):
-        self.sources.sort(key=lambda s: s.complexity)
-        self.sources[0].add(e)
+        comp, idx, s = heap[0]
+        s.add(e)
+        heapq.heapreplace(heap, (s.complexity, idx, s))
 
   def __enter__(self):
     return self
@@ -362,16 +380,28 @@ class _StreamFile:
     self.__file = open(path, mode)
     self.__digest = hashlib.md5()
     self.path = path
+    self.__buffer = []
+
+  def write(self, data):
+    self.__buffer.append(data)
+    if len(self.__buffer) >= 512:
+      self.__flush()
+
+  def __flush(self):
+    if self.__buffer:
+      chunk = "".join(self.__buffer)
+      self.__file.write(chunk)
+      self.__digest.update(chunk.encode("utf-8"))
+      self.__buffer.clear()
 
   @property
   def digest(self):
+    self.__flush()
     return self.__digest.hexdigest()
 
-  def write(self, data):
-    self.__file.write(data)
-    self.__digest.update(data.encode("utf-8"))
-
-  def close(self): self.__file.close()
+  def close(self):
+    self.__flush()
+    self.__file.close()
 
   def __enter__(self): return self
 
@@ -381,6 +411,8 @@ class _StreamFile:
 #
 class Entity:
   
+  _order_rank = None
+  _complexity = None
   __hdefs = None
   __sdefs = None
   __hdecls = None
@@ -392,10 +424,10 @@ class Entity:
   
   def __init__(self, *args, dependencies=(), references=(), **kwargs):
     super().__init__(*args, **kwargs)
-    self.references = set()
-    self.references.update(references)
+    self.references = set(references)
     self.dependencies = _DependencySet(self)
-    self.dependencies.update(dependencies)
+    if dependencies:
+      self.dependencies.update(dependencies)
 
   @property
   def _order_key(self):
@@ -458,7 +490,9 @@ class Entity:
 
   @property
   def complexity(self):
-    return self._source_declarations.complexity + self._source_definitions.complexity
+    if self._complexity is None:
+      self._complexity = self._source_declarations.complexity + self._source_definitions.complexity
+    return self._complexity
 
   def render_declarations(self, stream, header): pass
   

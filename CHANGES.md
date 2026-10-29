@@ -1,5 +1,6 @@
 - Test matrix additions.
 - CMake presets fixes.
+- Generator performance optimizations.
 - Bug fixes.
 
 # 0.0.2

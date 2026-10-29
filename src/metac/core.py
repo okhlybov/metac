@@ -469,18 +469,19 @@ def _optional_group_note(group):
 
 
 class _Documented(Entity, _VisibilityManager):
-  
+
+  brief = None
+  description = None
+  optional_group = None
+
   def __init__(self, *args, brief=None, description=None, optional_group=None, **kwargs):
     super().__init__(*args, **kwargs)
-    self.__manage_attr("brief", brief)
-    self.__manage_attr("description", description)
-    self.__manage_attr("optional_group", optional_group)
-
-  def __manage_attr(self, attr, value):
-    if value:
-      setattr(self, attr, value)
-    elif not hasattr(self.__class__, attr):
-      setattr(self, attr, None)
+    if brief:
+      self.brief = brief
+    if description:
+      self.description = description
+    if optional_group:
+      self.optional_group = optional_group
 
   # Display name of the type in the rendered documentation. The default is the
   # exact C identifier so the generated markup references the concrete expanded
@@ -1066,10 +1067,13 @@ def inout(obj):
   return Callable.InOut(obj)
 
 
+_always_true = lambda: True
+
+
 # Basic callable descriptor
 class Callable(_Documented):
   
-  def __init__(self, result, parameters, *args, constraint=lambda: True, variadic=False, **kwargs):
+  def __init__(self, result, parameters, *args, constraint=_always_true, variadic=False, **kwargs):
     super().__init__(*args, **kwargs)
     # Capture raw parameter description to be used in modeling of the descendant types
     self._result = result
@@ -1079,7 +1083,7 @@ class Callable(_Documented):
     
   @property
   def active(self):
-    return self.constraint() is True
+    return True if self.constraint is _always_true else (self.constraint() is True)
 
   @property
   def _result_c(self):
