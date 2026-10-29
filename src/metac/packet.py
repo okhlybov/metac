@@ -379,15 +379,20 @@ class Packet(_StructRenderer, Assignable, Sortable, Sequential, Insertable):
 
         @param[in,out] target the static vector to clear
       """) as m:
-      destroy_clear = f"""for(index = 0; index < target->size; ++index) {{
-          {destroy_i}
-        }}""" if self.element.destructible else ""
-      m.code = f"""
-        size_t index;
-        assert(target);
-        {destroy_clear}
-        target->size = 0;
-      """
+      if self.element.destructible:
+        m.code = f"""
+          size_t index;
+          assert(target);
+          for(index = 0; index < target->size; ++index) {{
+            {destroy_i}
+          }}
+          target->size = 0;
+        """
+      else:
+        m.code = """
+          assert(target);
+          target->size = 0;
+        """
 
     with self.method(self.element, "front", {"target": self}, constraint=lambda: self.element.copyable,
       references=(self.get,),

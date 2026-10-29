@@ -84,7 +84,7 @@ class Multiset(Traversable, Insertable):
     algebra_constraint = lambda: self.algebraic_operations and self.element.copyable and self.element.comparable
     subset_constraint = lambda: self.algebraic_operations and self.element.comparable
 
-    with self.method("int", ("apply", "union"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Multiset union (maximum multiplicities)",
+    with self.method(std.size_t, ("apply", "union"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Multiset union (maximum multiplicities)",
       description="""
         Expands the target multiset so that the multiplicity of each element becomes the maximum
         of its multiplicities in the target and in other.
@@ -109,7 +109,7 @@ class Multiset(Traversable, Insertable):
         return added;
       """
 
-    with self.method("int", ("apply", "difference"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Multiset difference (subtract multiplicities)",
+    with self.method(std.size_t, ("apply", "difference"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Multiset difference (subtract multiplicities)",
       description="""
         Subtracts the multiplicity of each element in other from the multiplicity in target.
         Cost is O(m) calls to `remove` where m is the other multiset's size.
@@ -136,7 +136,7 @@ class Multiset(Traversable, Insertable):
         return removed;
       """
 
-    with self.method("int", ("apply", "intersection"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Multiset intersection (minimum multiplicities)",
+    with self.method(std.size_t, ("apply", "intersection"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Multiset intersection (minimum multiplicities)",
       description="""
         Reduces the multiplicity of each element in target to the minimum of its multiplicities
         in target and in other.
@@ -165,7 +165,7 @@ class Multiset(Traversable, Insertable):
         return removed;
       """
 
-    with self.method("int", ("apply", "symmetric", "difference"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Multiset symmetric difference (absolute difference of multiplicities)",
+    with self.method(std.size_t, ("apply", "symmetric", "difference"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Multiset symmetric difference (absolute difference of multiplicities)",
       description="""
         Sets the multiplicity of each element in target to the absolute difference |m_target - m_other|.
         The target itself is allowed and empties it in place.

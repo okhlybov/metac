@@ -1,3 +1,4 @@
+import metac.std as std
 from metac.core import inout, out, enforced, Comparable, Coerce
 from metac.traversable import Traversable
 from metac.insertable import Insertable
@@ -60,7 +61,7 @@ class Set(Traversable, Insertable):
     algebra_constraint = lambda: self.algebraic_operations and self.element.copyable and self.element.comparable
     subset_constraint = lambda: self.algebraic_operations and self.element.comparable
 
-    with self.method("int", ("apply", "union"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Add all elements from other set",
+    with self.method(std.size_t, ("apply", "union"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Add all elements from other set",
       description="""
         Adds every element of the other set which the target does not hold yet by walking
         the other set's range and putting its elements. The other set is not modified.
@@ -83,7 +84,7 @@ class Set(Traversable, Insertable):
         return added;
       """
 
-    with self.method("int", ("apply", "difference"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Remove all elements found in other set",
+    with self.method(std.size_t, ("apply", "difference"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Remove all elements found in other set",
       description="""
         Removes every element of the target which the other set holds by walking the other
         set's range and removing its elements. The other set is not modified.
@@ -111,7 +112,7 @@ class Set(Traversable, Insertable):
         return removed;
       """
 
-    with self.method("int", ("apply", "intersection"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Keep only elements also present in other set",
+    with self.method(std.size_t, ("apply", "intersection"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Keep only elements also present in other set",
       description="""
         Removes every element of the target which the other set does not hold. The other set
         is traversed via a temporary copy of the target so the removals do not disturb the walk.
@@ -139,7 +140,7 @@ class Set(Traversable, Insertable):
         return removed;
       """
 
-    with self.method("int", ("apply", "symmetric", "difference"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Remove elements in both sets, add elements in only one",
+    with self.method(std.size_t, ("apply", "symmetric", "difference"), {"target": inout(self), "other": self}, constraint=algebra_constraint, optional_group="algebraic_operations", brief="Remove elements in both sets, add elements in only one",
       description="""
         Removes the elements the two sets share and adds the elements only the other set
         holds, making the target hold the elements present in exactly one of the sets.

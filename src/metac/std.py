@@ -22,7 +22,7 @@ stdlib_h = Code(interface="""
   #ifndef __STDC_WANT_LIB_EXT1__
     #define __STDC_WANT_LIB_EXT1__ 1
   #endif
-  #if defined(METAC_MSVC) && !defined(_CRT_RAND_S)
+  #if (defined(_MSC_VER) || defined(METAC_MSVC)) && !defined(_CRT_RAND_S)
     #define _CRT_RAND_S
   #endif
   #include <stdlib.h>

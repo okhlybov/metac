@@ -104,6 +104,9 @@ class RandomSeeder(Code):
           if(_rand_s(&word) == 0) return word;
         #elif defined(METAC_MSVC)
           /* Genuine MSVC CRT provides rand_s() */
+          #if !defined(_CRT_RAND_S)
+            int __cdecl rand_s(unsigned int*);
+          #endif
           unsigned word;
           if(rand_s(&word) == 0) return word;
         #elif (defined(__MINGW32__) || defined(__MINGW64__)) && (defined(_UCRT) || (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201410L))

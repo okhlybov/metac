@@ -14,6 +14,7 @@
 
 import metac.core
 import metac.module
+import metac.std as std
 
 
 codes = set()
@@ -128,10 +129,8 @@ class Type(Unit):
 
 
 code = metac.module.Code(
+  dependencies=(std.stdlib_h, std.stdio_h, std.string_h),
   interface=r"""
-    #include <stdlib.h>
-    #include <stdio.h>
-    #include <string.h>
     #define TEST_MESSAGE(s) fprintf(stdout, "# *** %s\\n", s); fflush(stdout);
     #define TEST_ASSERT(x) do { if(x) {} else condition_failure("evaluated to FALSE", #x, __FILE__, __LINE__); } while(0)
     #define TEST_TRUE(x) do { if(x) {} else condition_failure("expected TRUE but got FALSE", #x, __FILE__, __LINE__); } while(0)
