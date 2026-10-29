@@ -1,3 +1,7 @@
+- Test matrix additions.
+- CMake presets fixes.
+- Bug fixes.
+
 # 0.0.2
 
 - Scaffolders upgrade path.
