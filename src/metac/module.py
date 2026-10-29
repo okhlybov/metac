@@ -75,10 +75,44 @@ class _SmartRenderer:
         os.unlink(path)
 
 
+# Linear-time iterative reachability traversal over the entity graph in O(V + E).
+# Collects all entities reachable from the given seed set using an explicit stack
+# and a single visited set, completely avoiding recursive call overhead and
+# redundant intermediate set creation/union operations.
+def _collect_all_references(seed_entities):
+  visited = set(seed_entities)
+  queue = list(seed_entities)
+  while queue:
+    curr = queue.pop()
+    for ref in curr.references:
+      if ref not in visited:
+        visited.add(ref)
+        queue.append(ref)
+  return visited
+
+
+def _collect_all_dependencies(seed_entities):
+  visited = set(seed_entities)
+  queue = list(seed_entities)
+  while queue:
+    curr = queue.pop()
+    for dep in curr.dependencies:
+      if dep not in visited:
+        visited.add(dep)
+        queue.append(dep)
+  return visited
+
+
 _get_order_rank = operator.attrgetter("_order_rank")
 _get_order_key = operator.attrgetter("_order_key")
 
 
+# Two-phase deterministic entity sorting:
+# The initial sort operates over the full module entity set using composite _order_key
+# (topological position depth first, then rendered declaration/definition text as tie-breaker).
+# It assigns each entity a monotonic integer rank (_order_rank).
+# Subsequent sorts (e.g. for header emission or per-source translation units) sort subsets
+# by simply comparing plain integer ranks via fast C-level attribute getter.
 def _sort_entities(entities):
   it = iter(entities)
   first = next(it, None)
@@ -165,9 +199,7 @@ class Source(_EntityContainer, _SmartRenderer):
 
   def render_contents(self, stream):
     self.render_prologue(stream)
-    total_entities = set()
-    for e in self.entities:
-      total_entities.update(e.total_references)
+    total_entities = _collect_all_references(self.entities)
     for e in _sort_entities(total_entities):
       for chunk in e._source_declarations:
         stream.write(chunk)
@@ -285,10 +317,7 @@ class Module:
   @property
   def total_entities(self):
     if self.__total_entities is None:
-      entities = set()
-      for e in self.entities:
-        entities.update(e.total_references)
-      self.__total_entities = entities
+      self.__total_entities = _collect_all_references(self.entities)
     return self.__total_entities
 
   def distribute_entities(self):
@@ -300,6 +329,9 @@ class Module:
         total_complexity = sum(e.complexity for e in self.total_entities)
         self.source_count = int((total_complexity / self.source_threshold) + 0.999)  # ceil
     # Allow to disable sources rendering by setting source_count to 0
+    # Greedily partition entities across sources to balance translation unit complexity:
+    # Uses a min-heap to assign the next entity to the source with the lowest current
+    # cumulative complexity, updating the heap root in-place in O(log M) via heapreplace.
     if self.source_count > 0:
       heap = [(s.complexity, s.index, s) for s in self.sources]
       heapq.heapify(heap)
@@ -449,43 +481,41 @@ class Entity:
   @property
   def total_references(self):
     if self.__total_references is None:
-      self.__total_references = self.collect_references(set())
+      self.__total_references = _collect_all_references((self,))
     return self.__total_references
 
   @property
   def total_dependencies(self):
     if self.__total_dependencies is None:
-      self.__total_dependencies = self.collect_dependencies(set())
+      self.__total_dependencies = _collect_all_dependencies((self,))
     return self.__total_dependencies
 
   def collect_references(self, entities):
-    if self not in entities:
-      entities.add(self)
-      if self.__total_references is not None:
-        entities.update(self.__total_references)
-      else:
-        for ref in self.references:
-          ref.collect_references(entities)
+    entities.update(self.total_references)
     return entities
 
   def collect_dependencies(self, entities):
-    if self not in entities:
-      entities.add(self)
-      if self.__total_dependencies is not None:
-        entities.update(self.__total_dependencies)
-      else:
-        for dep in self.dependencies:
-          dep.collect_dependencies(entities)
+    entities.update(self.total_dependencies)
     return entities
 
   @property
   def position(self):
+    # In a directed acyclic graph, the topological level/depth (the longest path
+    # from any leaf dependency) is strictly determined by direct predecessors:
+    #   position(u) = 1 + max(position(v) for v in dependencies(u))
+    # Taking the maximum over direct dependencies alone is mathematically identical
+    # to iterating over the entire transitive closure, avoiding expensive O(V*E)
+    # reachability set calculations.
+    # An in-progress sentinel (-1) detects cycles and breaks them safely.
     if self.__position is None:
+      self.__position = -1
       p = 0
-      for d in self.total_dependencies:
+      for d in self.dependencies:
         if d is not self:
-          p = max(p, d.position)
+          p = max(p, d.position if d.__position != -1 else 0)
       self.__position = p + 1
+    elif self.__position == -1:
+      return 0
     return self.__position
 
   @property
