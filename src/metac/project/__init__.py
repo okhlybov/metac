@@ -2,6 +2,7 @@ import os
 import sys
 import pathlib
 import metac.scaffolder
+from metac.scaffolder import cli
 
 
 BACKENDS = ("cmake", "meson", "scons")
@@ -24,7 +25,7 @@ def get_backend_scaffolder(backend="cmake"):
 
 class Scaffolder(metac.scaffolder.Scaffolder):
 
-  def __init__(self, resources=None, parameters=None):
+  def __init__(self, resources=None, parameters=None, user_files=None):
     params = dict(parameters or {})
     generator = params.get("generator", "metac.cmake.CMake")
     params.setdefault("generator", generator)
@@ -42,9 +43,10 @@ class Scaffolder(metac.scaffolder.Scaffolder):
     super().__init__(
       resources=resources,
       parameters=params,
+      user_files=user_files,
     )
 
-  def generate(self, target=".", upgrade=False):
+  def generate(self, target=".", upgrade=False, force=False):
     target_path = pathlib.Path(target).resolve()
     import metac
     metac_source = pathlib.Path(metac.__file__).resolve().parent.parent
@@ -59,9 +61,9 @@ class Scaffolder(metac.scaffolder.Scaffolder):
     except ValueError:
       self.parameters["metac_path"] = metac_source.as_posix()
 
-    super().generate(target, upgrade=upgrade)
+    return super().generate(target, upgrade=upgrade, force=force)
 
 
-def generate(directory=".", project=None, backend="cmake", **kwargs):
+def generate(directory=".", project=None, backend="cmake", upgrade=False, force=False, **kwargs):
   import metac.sample
-  metac.sample.generate(directory=directory, project=project, backend=backend, **kwargs)
+  return metac.sample.generate(directory=directory, project=project, backend=backend, upgrade=upgrade, force=force, **kwargs)

@@ -284,15 +284,18 @@ class Scaffolder:
     backend = (parameters or {}).get("backend") or backend
     base_cls = metac.project.get_backend_scaffolder(backend)
 
+    class AutotestScaffolder(base_cls):
+      user_files = ("@module@.py",)
+
     custom_resources = {
       "@module@.py": reader,
       "@module@.c": None,
     } | dict(resources or {})
 
-    params = dict(project="metac-autotest", module="autotest", metac_mode="ON", user_files=()) | dict(parameters or {})
-    return base_cls(resources=custom_resources, parameters=params)
+    params = dict(project="metac-autotest", module="autotest", metac_mode="ON") | dict(parameters or {})
+    return AutotestScaffolder(resources=custom_resources, parameters=params)
 
 
-def generate(directory=".", backend="cmake", upgrade=False):
-  Scaffolder(backend=backend).generate(directory, upgrade=upgrade)
+def generate(directory=".", backend="cmake", upgrade=False, force=False):
+  return Scaffolder(backend=backend).generate(directory, upgrade=upgrade, force=force)
 

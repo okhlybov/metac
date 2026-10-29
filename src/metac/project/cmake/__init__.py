@@ -48,7 +48,7 @@ def _site_config():
 
 class Scaffolder(metac.project.Scaffolder):
 
-  def __init__(self, resources=None, parameters=None):
+  def __init__(self, resources=None, parameters=None, user_files=None):
     import metac
     metac_dir = pathlib.Path(metac.__file__).resolve().parent.parent.as_posix()
 
@@ -62,10 +62,11 @@ class Scaffolder(metac.project.Scaffolder):
         ".vscode/launch.json": reader,
         ".gitignore": reader,
       } | (resources or {}),
+      user_files=user_files,
       parameters=dict(generator="metac.cmake.CMake", backend="cmake", metac_path=metac_dir) | dict(parameters or {}) | {"metac_mode": str(dict(parameters or {}).get("metac_mode", "AUTO")).upper()}
     )
 
 
-def generate(directory=".", project=None, **kwargs):
+def generate(directory=".", project=None, upgrade=False, force=False, **kwargs):
   import metac.sample
-  metac.sample.generate(directory=directory, project=project, backend="cmake", **kwargs)
+  return metac.sample.generate(directory=directory, project=project, backend="cmake", upgrade=upgrade, force=force, **kwargs)

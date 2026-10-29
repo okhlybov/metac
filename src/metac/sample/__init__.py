@@ -21,7 +21,7 @@ class Scaffolder:
 import pathlib
 
 
-def generate(directory=".", project=None, backend="cmake", upgrade=False, **kwargs):
+def generate(directory=".", project=None, backend="cmake", upgrade=False, force=False, **kwargs):
   if "directory" in kwargs:
     if directory != "." and project is None:
       project = directory
@@ -38,4 +38,4 @@ def generate(directory=".", project=None, backend="cmake", upgrade=False, **kwar
 
   target_path = pathlib.Path(directory).resolve()
   project_name = project or target_path.name or "sample"
-  Scaffolder(parameters=dict(project=project_name, module=project_name), backend=backend).generate(directory, upgrade=upgrade)
+  return Scaffolder(parameters=dict(project=project_name, module=project_name), backend=backend).generate(directory, upgrade=upgrade, force=force)

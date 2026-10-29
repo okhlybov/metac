@@ -51,7 +51,7 @@ class Scaffolder(metac.project.Scaffolder):
   # The SConstruct variable spelling of the generation modes
   _modes = {"ON": "on", "AUTO": "auto", "OFF": "off"}
 
-  def __init__(self, resources=None, parameters=None):
+  def __init__(self, resources=None, parameters=None, user_files=None):
     import metac
     metac_dir = pathlib.Path(metac.__file__).resolve().parent.parent.as_posix()
 
@@ -67,10 +67,11 @@ class Scaffolder(metac.project.Scaffolder):
         ".vscode/tasks.json": reader,
         ".gitignore": reader,
       } | (resources or {}),
+      user_files=user_files,
       parameters=dict(generator="metac.scons.SCons", backend="scons", metac_path=metac_dir) | dict(parameters or {}) | {"metac_mode": self._modes.get(mode, "auto")}
     )
 
 
-def generate(directory=".", project=None, **kwargs):
+def generate(directory=".", project=None, upgrade=False, force=False, **kwargs):
   import metac.sample
-  metac.sample.generate(directory=directory, project=project, backend="scons", **kwargs)
+  return metac.sample.generate(directory=directory, project=project, backend="scons", upgrade=upgrade, force=force, **kwargs)

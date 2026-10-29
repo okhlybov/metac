@@ -132,7 +132,7 @@ readings/
 For SCons, the scaffolder generates `SConstruct`, `site_scons/site_tools/metac.py`, and `.metac/scons.site`.
 For Meson, it generates `meson.build`, `meson.options`, and `.metac/meson.site`.
 
-Re-running a scaffolder into an existing project refuses to overwrite any file (existing ones are listed and left untouched). Passing `--upgrade` refreshes every scaffolding file — including the site-local `.metac/*.site` configuration, so a project relocated to a new checkout or machine gets reseeded — while files matching `.metacignore` (seeded with your `readings.py` module and `readings.c` main source, and customizable with additional globs) are never touched:
+Re-running a scaffolder into an existing project without flags reports an error and refuses to overwrite existing files (pass `--force` / `-f` to overwrite). Passing `--upgrade` refreshes every scaffolding file — including the site-local `.metac/*.site` configuration, so a project relocated to a new checkout or machine gets reseeded — while files matching `.metacignore` (seeded with your `readings.py` module and `readings.c` main source, and customizable with additional globs) are never touched:
 
 ```sh
 python -m metac.cmake readings --upgrade   # refresh support files, keep your code

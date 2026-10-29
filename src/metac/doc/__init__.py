@@ -40,7 +40,6 @@ class Scaffolder:
       doc_mainpage=doc_mainpage_str,
       src_path=metac_source.as_posix(),
       metac_mode="ON", # the documentation is always regenerated from the live sources
-      user_files=(), # the doc module script is metac-owned wiring, not user code
     )
 
     # The doc pages are emitted into the project rather than referenced from
@@ -57,7 +56,9 @@ class Scaffolder:
 
     class DocScaffolder(base_cls):
 
-      def generate(self, target=".", upgrade=False):
+      user_files = ("@module@.py",)
+
+      def generate(self, target=".", upgrade=False, force=False):
         target_path = pathlib.Path(target).resolve()
         metac_source = pathlib.Path(metac.__file__).resolve().parent.parent
         try:
@@ -76,10 +77,10 @@ class Scaffolder:
         self.parameters["doc_pages"] = " ".join((target_path / p.name).resolve().as_posix() for p in pages)
         self.parameters["doc_mainpage"] = (target_path / mainpage.name).resolve().as_posix()
 
-        super().generate(target, upgrade=upgrade)
+        return super().generate(target, upgrade=upgrade, force=force)
 
     return DocScaffolder(resources=custom_resources, parameters=doc_parameters | params)
 
 
-def generate(directory=".", project="doc", backend="cmake", upgrade=False):
-  Scaffolder(parameters=dict(project=project, module=project), backend=backend).generate(directory, upgrade=upgrade)
+def generate(directory=".", project="doc", backend="cmake", upgrade=False, force=False):
+  return Scaffolder(parameters=dict(project=project, module=project), backend=backend).generate(directory, upgrade=upgrade, force=force)

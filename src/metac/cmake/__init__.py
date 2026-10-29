@@ -68,6 +68,4 @@ Scaffolder = metac.project.cmake.Scaffolder
 
 def generate(directory=".", project=None, backend="cmake", **kwargs):
   import metac.sample
-  metac.sample.generate(directory=directory, project=project, backend=backend, **kwargs)
-
-
+  return metac.sample.generate(directory=directory, project=project, backend=backend, **kwargs)

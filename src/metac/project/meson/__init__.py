@@ -51,7 +51,7 @@ class Scaffolder(metac.project.Scaffolder):
   # The meson feature combo spelling of the generation modes
   _regenerate = {"ON": "enabled", "AUTO": "auto", "OFF": "disabled"}
 
-  def __init__(self, resources=None, parameters=None):
+  def __init__(self, resources=None, parameters=None, user_files=None):
     import metac
     metac_dir = pathlib.Path(metac.__file__).resolve().parent.parent.as_posix()
 
@@ -67,10 +67,11 @@ class Scaffolder(metac.project.Scaffolder):
         ".vscode/launch.json": reader,
         ".gitignore": reader,
       } | (resources or {}),
+      user_files=user_files,
       parameters=dict(generator="metac.meson.Meson", backend="meson", metac_path=metac_dir) | dict(parameters or {}) | {"metac_mode": mode, "regenerate_default": regenerate}
     )
 
 
-def generate(directory=".", project=None, **kwargs):
+def generate(directory=".", project=None, upgrade=False, force=False, **kwargs):
   import metac.sample
-  metac.sample.generate(directory=directory, project=project, backend="meson", **kwargs)
+  return metac.sample.generate(directory=directory, project=project, backend="meson", upgrade=upgrade, force=force, **kwargs)
