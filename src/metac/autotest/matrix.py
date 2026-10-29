@@ -78,15 +78,16 @@ def _simple(cls, **kwargs):
 
 ROWS = (
   (_simple(Vector), "vector", ALL),
+  (lambda name, element: Vector(name, element, inline_capacity=4), "inlined_vector", ("int", "comp")),  # the inline<->heap storage transitions the plain vector rows never take
   (_simple(Packet, capacity=8), "packet", ("int", "cstring")),  # slots default-construct: parametrized-create kinds excluded
   (_simple(Array, size=8), "array", ("int", "cstring")),
-  (_simple(TieredVector), "tiered", ("int",)),  # growth default-constructs slots: parametrized-create kinds excluded
+  (_simple(TieredVector), "tiered", ("int", "cstring", "rec")),  # growth default-constructs slots: parametrized-create kinds excluded
   (_simple(List), "list", ALL),
   (_simple(Deque), "deque", ALL),
   (_simple(StaticCircularBuffer, capacity=4), "scbuffer", ("int", "cstring")),
-  (_simple(DynamicCircularBuffer), "dbuffer", ("int", "comp")),
-  (_simple(Stack), "stack", ("int", "cstring", "comp")),
-  (_simple(Queue), "queue", ("int", "cstring", "comp")),
+  (_simple(DynamicCircularBuffer), "dbuffer", ("int", "comp", "arc", "rec")),
+  (_simple(Stack), "stack", ("int", "cstring", "comp", "arc", "rec")),
+  (_simple(Queue), "queue", ("int", "cstring", "comp", "arc", "rec")),
   (_simple(PriorityQueue), "pqueue", ("int", "cstring")),
   (_simple(ChainedHashSet), "chained_set", ALL),
   (lambda name, element: IntrusiveHashSet(name, element, _int_sentinels(), dependencies=(std.limits_h,)),

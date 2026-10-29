@@ -147,11 +147,15 @@ class Record(_StructRenderer, Composite):
       m.inline_code = _view_code
 
   def _add_writer(self, type, field):
-    # The composite fields pass the value by pointer, so the exact self-assignment
-    # (the view of the very field fed into its own setter) is recognizable and
-    # neutralized as the no-op it means; the value-passed primitives cannot alias
+    # The pointer-passed fields recognize the exact self-assignment (the view of
+    # the very field fed into its own setter) and neutralize it as the no-op it
+    # means - the composite slots compare by address, the owning pointer fields
+    # (strings, counted references) by the pointer value itself; the value-passed
+    # primitives cannot alias
     self_aliasing = isinstance(type, Composite) and not isinstance(type, (Primitive, Indirection))
-    brief_note = " Assigning the field to itself through its own view is a recognized no-op." if self_aliasing else ""
+    pointer_aliasing = isinstance(type, Indirection)
+    guarded = self_aliasing or pointer_aliasing
+    brief_note = " Assigning the field to itself through its own view is a recognized no-op." if guarded else ""
     with self.method(None, ("set", field), {"target": out(self), "value": type}, visibility=self.visibility, constraint=lambda: type.copyable, brief=f"Set the {field} field",
       description=f"""
         Replaces the contents of the {field} field with the given value - the previously
@@ -170,6 +174,10 @@ class Record(_StructRenderer, Composite):
         if self_aliasing:
           body = f"""
             if(&{target}.{field} != value) {{{body}}}
+          """
+        elif pointer_aliasing:
+          body = f"""
+            if({target}.{field} != value) {{{body}}}
           """
         return body
       m.inline_code = _writer_code

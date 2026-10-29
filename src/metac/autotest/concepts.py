@@ -347,6 +347,29 @@ def emit_sequence(ctx):
     body = [f"TEST_TRUE({ctx.call('capacity', ctx.t)} >= {ctx.call('size', ctx.t)});"]
     ctx.unit("capacity(): room for held elements", "\n".join(body))
 
+  # The reallocation paths: reserve grows without disturbing the contents, compact
+  # shrinks the capacity back toward the size keeping every element alive
+  if active(T, "reserve") and active(T, "capacity") and ctx.fill_attr and active(T, "contains"):
+    body = [ctx.fill(0), ctx.fill(1),
+            f"{T.reserve(ctx.t, '64')};",
+            f"TEST_TRUE({ctx.call('capacity', ctx.t)} >= 64);",
+            f"TEST_EQUAL({ctx.call('size', ctx.t)}, 2);",
+            f"TEST_TRUE({ctx.call('contains', ctx.t, ctx.earg(0))});",
+            f"TEST_TRUE({ctx.call('contains', ctx.t, ctx.earg(1))});"]
+    ctx.unit("reserve(): grow storage keeping the contents", "\n".join(body), nlocs=2)
+
+  if active(T, "compact") and active(T, "capacity") and ctx.fill_attr and active(T, "contains"):
+    prelude = [ctx.fill(0), ctx.fill(1)]
+    if active(T, "reserve"):
+      prelude.append(f"{T.reserve(ctx.t, '64')};")
+    body = prelude + [f"{T.compact(ctx.t)};",
+                      f"TEST_TRUE({ctx.call('capacity', ctx.t)} >= {ctx.call('size', ctx.t)});"]
+    if active(T, "reserve"):
+      body.append(f"TEST_TRUE({ctx.call('capacity', ctx.t)} < 64);")
+    body += [f"TEST_TRUE({ctx.call('contains', ctx.t, ctx.earg(0))});",
+             f"TEST_TRUE({ctx.call('contains', ctx.t, ctx.earg(1))});"]
+    ctx.unit("compact(): shrink storage keeping the contents", "\n".join(body), nlocs=2)
+
   if active(T, "clear") and ctx.fill_attr:
     body = [ctx.fill(0), ctx.fill(1), f"{T.clear(ctx.t)};",
             f"TEST_TRUE({ctx.call('empty', ctx.t)});"]
@@ -525,6 +548,22 @@ def emit_set(ctx):
              f"for(size_t {i} = 0; {i} < 100; ++{i}) TEST_TRUE({ctx.call('remove', ctx.t, f'({i}*37) % 100')});",
              f"TEST_TRUE({ctx.call('empty', ctx.t)});"]
     ctx.unit("put()/remove(): churn without loss", "\n".join(churn))
+
+  # The open-addressing table accumulates tombstones under the distinct-key
+  # put/remove churn keeping the live count near zero - the compaction must keep
+  # the tombstones bounded so the probe chains keep meeting empty slots
+  from metac.intrusive_hash_set import Set as IntrusiveHashSet
+  if ek.numeric and isinstance(T, IntrusiveHashSet) and active(T, "put") and active(T, "remove") and active(T, "contains"):
+    i = "i"
+    compaction = [f"for(size_t {i} = 0; {i} < 200; ++{i}) {{ {ctx.call('put', ctx.t, f'({i}*37) % 200')}; {ctx.call('remove', ctx.t, f'({i}*37) % 200')}; }}",
+                  f"TEST_EQUAL({ctx.call('size', ctx.t)}, 0);",
+                  "TEST_TRUE(t.tombstones < t.capacity);",
+                  f"for(size_t {i} = 0; {i} < 20; ++{i}) TEST_FALSE({ctx.call('contains', ctx.t, f'({i}*37) % 200')});",
+                  f"TEST_TRUE({ctx.call('put', ctx.t, ctx.earg(0))});",
+                  f"TEST_TRUE({ctx.call('put', ctx.t, ctx.earg(1))});",
+                  f"TEST_EQUAL({ctx.call('size', ctx.t)}, 2);",
+                  f"TEST_TRUE({ctx.call('contains', ctx.t, ctx.earg(0))});"]
+    ctx.unit("put()/remove(): tombstone churn stays compacted", "\n".join(compaction), nlocs=2)
 
   _emit_algebra(ctx, a0, a1, a2)
 
