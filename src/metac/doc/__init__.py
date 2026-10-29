@@ -3,7 +3,6 @@ import pathlib
 import metac
 import metac.project
 from metac.scaffolder import make_template_reader
-from metac.doc.catalog import *
 
 dir = pathlib.Path(__file__).parent
 mainpage = dir / "mainpage.md"

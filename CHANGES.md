@@ -1,6 +1,7 @@
 - Test matrix additions.
 - CMake presets fixes.
 - Scaffolders seed/upgrade fixes.
+- SCons/Meson scaffolders fixes.
 - Bug fixes.
 
 # 0.0.2

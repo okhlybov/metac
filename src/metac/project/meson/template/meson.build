@@ -31,9 +31,9 @@ meson_file = module_name + '.meson'
 regen_opt = get_option('regenerate')
 has_meson_file = fs.exists(meson_file)
 
-env_cmd = []
+gen_env = environment()
 if site_pythonpath != ''
-  env_cmd = ['env', 'PYTHONPATH=' + site_pythonpath]
+  gen_env.set('PYTHONPATH', site_pythonpath)
 endif
 
 # The fragment and the sources it lists are consumed at configure time, so
@@ -55,11 +55,7 @@ if run_generator
     error('MetaC generator requires Python 3, but Python was not found and ' + meson_file + ' is missing or the sources it lists have disappeared.')
   endif
   message((has_meson_file ? 'Regenerating' : 'Bootstrapping') + ' MetaC module ' + module_name)
-  if env_cmd.length() > 0
-    run_command(env_cmd, py, module_name + '.py', module_name, '--backend=meson', check: true)
-  else
-    run_command(py, module_name + '.py', module_name, '--backend=meson', check: true)
-  endif
+  run_command(py, module_name + '.py', module_name, '--backend=meson', env: gen_env, check: true)
 endif
 
 metac_file_names = fs.read(meson_file).strip().split()
@@ -77,18 +73,13 @@ metac_sources = files(metac_file_names)
 need_generator = regen_opt.enabled() or (regen_opt.auto() and py.found())
 
 if need_generator
-  gen_cmd = []
-  if env_cmd.length() > 0
-    gen_cmd += env_cmd
-  endif
   stamp_file = meson.current_build_dir() / (module_name + '.stamp')
-  gen_cmd += [py, '@INPUT@', module_name, '--backend=meson', stamp_file]
-
   module_gen = custom_target(
     module_name + '-generate',
     input: module_name + '.py',
     output: module_name + '.stamp',
-    command: gen_cmd,
+    command: [py, '@INPUT@', module_name, '--backend=meson', stamp_file],
+    env: gen_env,
     build_by_default: true,
   )
   metac_dep = declare_dependency(

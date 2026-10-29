@@ -1,3 +1,4 @@
+import metac.core
 import unittest
 from metac.core import _Traitful, Composite, Primitive, TraitError, IntersectionType, Comparable, Orderable, Hashable, Copyable, satisfies, require, enforced, Type, Coerce
 from metac.ordered import Ordered
@@ -120,6 +121,13 @@ class MockTraitful(_Traitful):
 
 
 class TestTraits(unittest.TestCase):
+
+  def setUp(self):
+    self._prev_decorator = metac.core.decorator
+    metac.core.decorator = metac.core.snake_decorator
+
+  def tearDown(self):
+    metac.core.decorator = self._prev_decorator
 
   def test_traitful_enforcers_success(self):
     t = MockTraitful(comparable=True, orderable=True, hashable=True, copyable=True)

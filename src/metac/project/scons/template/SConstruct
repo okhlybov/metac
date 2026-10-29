@@ -33,7 +33,7 @@ if os.path.exists(_site):
 # Compiler configuration based on build type
 if env["BUILD_TYPE"].lower() == "debug":
   if env.get("PLATFORM") == "win32" and env.get("CC") in ("cl", "msvc"):
-    env.Append(CCFLAGS=["/Od", "/Zi", "/MDd"])
+    env.Append(CCFLAGS=["/Od", "/Zi", "/MDd", "/FS"])
   else:
     env.Append(CCFLAGS=["-g", "-O0"])
 else:
