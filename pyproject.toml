@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "metac"
-version = "0.0.2"
+version = "0.0.3"
 description = "C metaprogramming & code generation package"
 readme = "README.md"
 authors = [{name = "Oleg A. Khlybov", email = "fougas@mail.ru"}]
@@ -23,6 +23,9 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/okhlybov/metac"
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.setuptools.package-data]
 "*" = [
