@@ -758,8 +758,6 @@ class Primitive(_Named, _Traitful):
     self.macro_from("create", lambda target: f"({target}) = 0")
     self.macro_from("copy", lambda target, source: f"({target}) = ({source})")
     self.macro_from("move", lambda target, source: f"({target}) = ({source})")
-    # The temporary follows the composite swap's `temp` spelling - a bare `_` would
-    # collide with an argument that happens to carry the same name
     self.macro_from("swap", lambda left, right: f"{{ {self} _primitive_temporary = {left}; ({left}) = ({right}); ({right}) = (_primitive_temporary); }}")
     self.macro_from("equal", lambda left, right: f"({left} == {right})")
     self.macro_from("compare", lambda left, right: f"({left} == {right} ? 0 : ({left} < {right} ? -1 : +1))")
@@ -971,8 +969,8 @@ class CharacterLiteral(Literal):
 # Class for representing the C variable
 class Variable(Value):
   
-  def __init__(self, type, name, **kwargs):
-    super().__init__(type, **kwargs)
+  def __init__(self, type, name, *args, **kwargs):
+    super().__init__(type, *args, **kwargs)
     self.name = str(name)
 
   def bind(self, type):
