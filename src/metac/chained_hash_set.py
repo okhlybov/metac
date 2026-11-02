@@ -2,8 +2,8 @@ import metac.std as std
 from metac.range import Forward
 import metac.set
 from metac.hashed import Hashed
-from metac.container import _Range
-from metac.core import inout, out, _type, _StructRenderer, Indirection, Callable, _ceil_power2
+from metac.container import _Range, _ceil_power2
+from metac.core import inout, out, _type, _StructRenderer, Indirection, Callable
 
 
 #

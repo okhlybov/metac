@@ -2,8 +2,8 @@ import metac.std as std
 from metac.range import Forward
 import metac.set
 from metac.hashed import Hashed
-from metac.container import _Range
-from metac.core import out, inout, Macro, Indirection, Callable, Composite, _StructRenderer, _ceil_power2
+from metac.container import _Range, _ceil_power2
+from metac.core import out, inout, Macro, Indirection, Callable, Composite, _StructRenderer
 from metac.intrusive_option import Option as IntrusiveOption
 
 
