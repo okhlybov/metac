@@ -170,6 +170,23 @@ class Source(_EntityContainer, _SmartRenderer):
 _build_context = None
 
 
+def _conflicting(left, right, name):
+  # Two entities sharing a name conflict when both lay claim to the type's
+  # self-typedef (`typedef struct name name;`) - the identifier-carrying
+  # declaration every struct-rendering type emits exactly once, whose
+  # redefinition with different bodies would not compile. The entities that
+  # merely borrow the name while spelling their internals separately (the
+  # counted reference over a composite, for example, whose underlying storage
+  # carries its own anonymous tag) coexist legally
+  self_typedef = f"typedef struct {name} {name};"
+  return self_typedef in str().join(left._header_declarations) and self_typedef in str().join(right._header_declarations)
+
+
+class DuplicateNameError(ValueError):
+  """Two distinct types render under the same C identifier within one module."""
+  pass
+
+
 #
 class Module:
 
@@ -178,6 +195,7 @@ class Module:
   __sources = None
   __digests = None
   __total_entities = None
+  __names = None
 
   def __init__(self, name=None, *args, default=None, directory=None, stateful=True, source_count=None, source_threshold=None, source=Source, header=Header, **kwargs):
     super().__init__(*args, **kwargs)
@@ -211,8 +229,33 @@ class Module:
     return self.__entities
 
   def add(self, entity):
+    # A parametrization (Vector[int]) added directly is materialized under its
+    # bare template-id spelling - the derived name is checked against the index
+    # like any explicit one
+    materialize = getattr(entity, "materialize", None)
+    if materialize is not None:
+      entity = materialize()
     self.entities.add(entity)
+    # The type-declaring entities are indexed to reject the duplicate C
+    # identifiers upfront - the struct-rendering types are recognized by their
+    # opaque attribute; the primitives and the function entities render no type
+    # declarations so their spellings may repeat freely
+    name = getattr(entity, "name", None)
+    if name is not None and getattr(entity, "opaque", None) is not None:
+      prior = self.names.get(name)
+      if prior is not None and prior is not entity and _conflicting(prior, entity, name):
+        raise DuplicateNameError(
+          f"metac module '{self.name}': the identifier '{name}' is already rendered "
+          f"by a conflicting {type(prior).__name__} entity - the type names must be "
+          f"unique within a module")
+      self.names[name] = entity
     return self
+
+  @property
+  def names(self):
+    if self.__names is None:
+      self.__names = {}
+    return self.__names
 
   @property
   def header(self):
@@ -276,8 +319,25 @@ class Module:
       self.__total_entities = entities
     return self.__total_entities
 
+  def _check_duplicate_names(self):
+    # The referenced closure is checked as well: the types pulled in through
+    # the parameters never pass through add() yet render their declarations -
+    # a duplicated identifier there is the same broken C as the direct duplicate
+    seen = {}
+    for entity in self.total_entities:
+      name = getattr(entity, "name", None)
+      if name is None or getattr(entity, "opaque", None) is None:
+        continue
+      prior = seen.setdefault(name, entity)
+      if prior is not entity and _conflicting(prior, entity, name):
+        raise DuplicateNameError(
+          f"metac module '{self.name}': the identifier '{name}' is rendered by two "
+          f"conflicting {type(prior).__name__} entities - the type names must be unique "
+          f"within a module; name one of the parametrizations explicitly via named()")
+
   def distribute_entities(self):
     self.header.entities.update(self.total_entities)
+    self._check_duplicate_names()
     if self.source_count is None:
       if self.source_threshold is None:
         self.source_count = 1

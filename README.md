@@ -71,6 +71,27 @@ for(r = int_vector_range_new(&v); !int_vector_range_empty(&r);
 int_vector_destroy(&v);
 ```
 
+### Parametrized types a la C++
+
+The containers also accept the C++-like subscription spelling: the subscript carries the type
+parameters, the call carries the name and the tuning arguments. The parameters take the metac
+type objects (`metac.std.int` and friends) or the C spellings (`"int"`, `"const char*"`), and a
+parametrization used as a nested type parameter is named on demand, derived from the type being
+constructed:
+
+```python
+with Module("mymodule") as m:
+  m.add(Vector[std.int]("int_vector"))                  # == Vector("int_vector", "int")
+  m.add(Map["const char*", std.int]("str2int"))         # == Map("str2int", "const char*", "int")
+  m.add(List[Vector[std.int]]("scores"))                # the element is derived as scores_int_vector
+  m.add(List[Vector[std.int]("samples")])               # or named explicitly upfront
+  m.add(List[Array[std.int].partial(size=8)]("grid"))   # tuning bound inside the subscript
+```
+
+The derived names follow the house conventions (`int_vector`, `int_cstring_map`) and are checked
+against the module's name index - two entities rendering conflicting declarations under one
+identifier are rejected at the generation time.
+
 Every generated type speaks the same vocabulary of value semantics:
 
 ```c

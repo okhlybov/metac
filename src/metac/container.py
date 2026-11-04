@@ -3,7 +3,7 @@ from metac.hash import Xor
 from metac.range import Range
 from metac.memory import Manager
 from metac.module import Code
-from metac.core import Composite, _StructRenderer, _type, enforced, Coerce, Type, _linkage_code
+from metac.core import Composite, _StructRenderer, _type, enforced, Coerce, Type, _linkage_code, Parametrizable
 
 
 #
@@ -47,7 +47,7 @@ class _Range(_StructRenderer, Range):
 
 
 # Root abstract protocol for all containers holding entities of the same type
-class Container(Composite):
+class Container(Parametrizable, Composite):
 
   brief = "Abstract container for entities of the same type"
 

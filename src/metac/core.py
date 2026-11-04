@@ -34,6 +34,11 @@ def _type(obj):
   for c in (_type2type, _str2type):
     if x := c(obj):
       return x
+  if isinstance(obj, Template):
+    raise TraitError(
+      f"{obj!r} is an unmaterialized parametrization - the C type it describes "
+      f"needs a name: call it with one ({obj._cls.__name__}[...]<name>), directly "
+      f"or inside the enclosing subscript")
   raise TypeError(f"{obj} is not convertible to Type")
 
 
@@ -196,6 +201,221 @@ class Coerce(metaclass=_CoerceMetaclass):
   pass
 
 
+#
+# The readable single-word spellings for the common pointer types
+_MANGLE_ALIASES = {"const char*": "cstring", "char*": "string"}
+
+
+def _camel_words(name):
+  # Splits the CamelCase class spelling into the lowercase identifier words
+  return [w.lower() for w in re.findall(r"[A-Z]+(?=[A-Z][a-z0-9])|[A-Z]?[a-z0-9]+|[A-Z]+", name)]
+
+
+def _spelling_words(value):
+  # Splits a C type spelling into the identifier words, aliasing the common
+  # pointer types to their readable single-word spellings
+  spelling = str(value)
+  if spelling in _MANGLE_ALIASES:
+    return [_MANGLE_ALIASES[spelling]]
+  atom = re.sub(r"[^0-9a-zA-Z]+", "_", spelling).strip("_")
+  return [w for w in atom.split("_") if w]
+
+
+def _parameter_words(value):
+  # The identifier words spelling a single type parameter: parametrizations
+  # recurse into their own words, types contribute their names, the spellings
+  # of the primitives are sanitized mechanically
+  if isinstance(value, Template):
+    return value._words()
+  if isinstance(value, bool):
+    return ["true" if value else "false"]
+  return _spelling_words(value)
+
+
+class _PrefixShim:
+  # The decoration protocol reads the prefix off its type argument - the
+  # derived names have no type to decorate yet, so the outer name or the
+  # empty prefix is served through this shim
+  def __init__(self, prefix):
+    self.prefix = prefix
+
+
+class Template:
+  """A deferred parametrization of a container type: `Vector[int]` spelling.
+
+  The subscript carries the type parameters alone while the call carries the
+  identity - the C identifier name - and the tuning arguments, mirroring the
+  C++ separation of the template arguments from the constructor arguments.
+  The call rule is uniform: naming a parametrization is calling it, wherever
+  it sits - top level or inside another subscript, where the pre-constructed
+  instance passes through as the parameter:
+
+      Vector[int]("values")                     # == Vector("values", "int")
+      Map[str, int]("str2int")                  # == Map("str2int", "str", "int")
+      Array[int].partial(size=8)("matrix")      # tuning bound inside the subscript
+      List[Vector[int]]("scores")               # the element is named on demand
+      List[Vector[int]("samples")]("scores")    # or named explicitly upfront
+  """
+
+  _cache = {}
+
+  @classmethod
+  def _intern(cls, concrete, parameters, tuning):
+    key = (concrete, parameters, tuning)
+    template = cls._cache.get(key)
+    if template is None:
+      template = cls._cache[key] = Template(concrete, parameters, tuning)
+    return template
+
+  def __init__(self, concrete, parameters=(), tuning=()):
+    self._cls = concrete
+    self._slots = concrete._parameter_slots()
+    self._parameters = tuple(parameters)
+    self._tuning = tuple(tuning)
+
+  def partial(self, **tuning):
+    """Binds the tuning arguments (capacities, orders) inside the subscript itself."""
+    slot_clash = set(tuning) & set(self._slots)
+    if slot_clash:
+      raise TraitError(f"{self!r}: {sorted(slot_clash)} are type parameters carried by the subscript, not tuning")
+    tuning_clash = set(tuning) & set(dict(self._tuning))
+    if tuning_clash:
+      raise TraitError(f"{self!r}: {sorted(tuning_clash)} already bound via partial()")
+    merged = dict(self._tuning) | tuning
+    return Template._intern(self._cls, self._parameters, tuple(sorted(merged.items())))
+
+  def _words(self):
+    # The identifier components of the template-id: the parameters precede
+    # the family words, the tuning follows - the components are joined by
+    # the active decorator exactly like every other symbol of the type
+    words = []
+    for p in self._parameters:
+      words += _parameter_words(p)
+    words += _camel_words(self._cls.__name__)
+    for k, v in self._tuning:
+      words += [k, *_parameter_words(v)]
+    return words
+
+  def _derived_name(self, outer_name=None):
+    # The name rides the global decoration pipeline: the outer name acts as
+    # the prefix (the context anchor) and the template-id words as the
+    # identifier - the snake and the camel styles fall out of the decorator
+    # without any spelling logic of their own
+    decorator = sys.modules[__name__].decorator
+    words = self._words()
+    if outer_name is not None:
+      return decorator(_PrefixShim(str(outer_name)), words)
+    return decorator(_PrefixShim(""), words).lstrip("_")
+
+  def materialize(self, outer_cls=None, outer_name=None, cache=None):
+    """Constructs the type this parametrization describes.
+
+    The name resolution: the derivation from the constructing outer type (the
+    outer name prefixed onto the template-id through the active decorator) or
+    the bare template-id when there is no outer context. The cache deduplicates
+    the materializations of the same parametrization within one construction.
+    """
+    if cache is not None:
+      shared = cache.get(id(self))
+      if shared is not None:
+        return shared
+    name = self._derived_name(outer_name)
+    entity = self(name)
+    if cache is not None:
+      cache[id(self)] = entity
+    return entity
+
+  def __call__(self, name, **kwargs):
+    if not isinstance(name, str):
+      raise TraitError(f"{self!r} expects the C type name as the first argument, got {name!r}")
+    tuning = dict(self._tuning)
+    clash = tuning.keys() & kwargs.keys()
+    if clash:
+      raise TraitError(f"{self!r}: {sorted(clash)} already bound via partial(), remove the duplicates")
+    bindings = dict(zip(self._slots, self._parameters))
+    all_kwargs = {**bindings, **tuning, **kwargs}
+    try:
+      # The bind check is best effort: the pass-through constructors swallow
+      # the parameters into *args so the signature is only inspected when it
+      # spells them out
+      signature = inspect.signature(self._cls.__init__)
+      signature = signature.replace(parameters=[p for n, p in signature.parameters.items() if n != "self"])
+      signature.bind(name, **all_kwargs)
+    except TypeError as e:
+      raise TraitError(f"{self!r}: {e} - the tuning parameters are supplied at the call time (possibly via partial())") from e
+    except ValueError:
+      pass
+    return self._cls(name, **all_kwargs)
+
+  def __repr__(self):
+    params = ", ".join(repr(p) if isinstance(p, Template) else "_".join(_parameter_words(p)) for p in self._parameters)
+    spelling = f"{self._cls.__name__}<{params}>"
+    if self._tuning:
+      spelling += "|" + ", ".join(f"{k}={v}" for k, v in self._tuning)
+    return spelling
+
+
+class Parametrizable:
+  """Mixin granting the C++-like subscription parameterization: `Vector[int]`.
+
+  The type parameter slots are derived from the constructor annotations - the
+  parameters declared as Coercions (`element: Coerce[Type]`) are the type
+  parameters, everything else (capacities, orders, backends) stays call-time
+  tuning. Classes may override `_parameter_slots()` to declare the slots
+  explicitly.
+  """
+
+  @classmethod
+  def _parameter_slots(cls):
+    slots = cls.__dict__.get("__parameter_slots__")
+    if slots is not None:
+      return slots
+    declared = getattr(cls, "__parameter_slots__", None)
+    if declared is not None:
+      return declared
+    # The constructors forward through the pass-through __init__s (List(*args,
+    # **kwargs) and friends), so the parameter spellings accumulate across the
+    # whole hierarchy: a parameter is a type slot when any constructor along
+    # the chain annotates it with a Coercion - the keyword injection reaches
+    # them through the same forwarding
+    annotations = {}
+    parameters = []
+    for klass in reversed(cls.__mro__):
+      init = klass.__dict__.get("__init__")
+      if init is None:
+        continue
+      annotations.update(getattr(init, "__annotations__", None) or {})
+      for name, parameter in inspect.signature(init).parameters.items():
+        if name in ("self", "name") or parameter.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+          continue
+        if name not in parameters:
+          parameters.append(name)
+    slots = []
+    for name in parameters:
+      annotation = annotations.get(name)
+      if annotation is None:
+        continue
+      coercing = isinstance(annotation, _Coercion)
+      if not coercing:
+        origin = typing.get_origin(annotation)
+        if origin is typing.Union or isinstance(annotation, types.UnionType):
+          coercing = any(isinstance(a, _Coercion) for a in typing.get_args(annotation))
+      if coercing:
+        slots.append(name)
+    result = tuple(slots)
+    setattr(cls, "__parameter_slots__", result)
+    return result
+
+  @classmethod
+  def __class_getitem__(cls, parameters):
+    if not isinstance(parameters, tuple):
+      parameters = (parameters,)
+    slots = cls._parameter_slots()
+    if len(parameters) > len(slots):
+      raise TraitError(f"{cls.__name__} takes at most {len(slots)} type parameter(s) ({', '.join(slots)}), got {len(parameters)}")
+    return Template._intern(cls, parameters, ())
+
+
 class _TraitMetaclass(_Contract):
   """Metaclass for trait protocols (Comparable, Orderable, Hashable, etc.)."""
 
@@ -268,9 +488,47 @@ class ZeroInitializable(_Trait):
   _instance_trait = "zero_initializable"
 
 
+def _materialize_arguments(cls, args, kwargs):
+  # The parametrizations found among the constructing arguments are materialized
+  # on the spot, deriving their names from the type being constructed - this is
+  # what lets a parametrization be used directly as a nested type parameter
+  # (List[Vector[int]]("scores")) without naming the inner instantiation upfront.
+  # The per-construction cache shares one parametrization used by several
+  # parameters of the same type (the record fields spelling)
+  outer_name = args[0] if args else kwargs.get("name")
+  cache = {}
+
+  def walk(value):
+    if isinstance(value, Template):
+      return value.materialize(outer_cls=cls, outer_name=str(outer_name), cache=cache)
+    if isinstance(value, tuple):
+      return tuple(walk(x) for x in value)
+    if isinstance(value, list):
+      return [walk(x) for x in value]
+    if isinstance(value, dict):
+      return {k: walk(v) for k, v in value.items()}
+    return value
+
+  new_args = args if len(args) <= 1 else (args[0], *(walk(a) for a in args[1:]))
+  new_kwargs = {k: walk(v) for k, v in kwargs.items()}
+  return new_args, new_kwargs
+
+
+def _has_template(value):
+  if isinstance(value, Template):
+    return True
+  if isinstance(value, (tuple, list)):
+    return any(_has_template(x) for x in value)
+  if isinstance(value, dict):
+    return any(_has_template(v) for v in value.values())
+  return False
+
+
 class _StageConstructorMetaclass(_Contract):
 
   def __call__(cls, *args, **kwargs):
+    if _has_template(args[1:]) or _has_template(kwargs):
+      args, kwargs = _materialize_arguments(cls, args, kwargs)
     obj = super().__call__(*args, **kwargs)
     obj.__setup__()
     obj.__register__()
