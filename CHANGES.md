@@ -1,5 +1,7 @@
 #
 
+- C++ -style types parametrization
+
 # 0.0.3
 
 - Test matrix additions.
