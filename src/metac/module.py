@@ -179,7 +179,7 @@ def _conflicting(left, right, name):
   # counted reference over a composite, for example, whose underlying storage
   # carries its own anonymous tag) coexist legally
   self_typedef = f"typedef struct {name} {name};"
-  return self_typedef in str().join(left._header_declarations) and self_typedef in str().join(right._header_declarations)
+  return self_typedef in str().join(getattr(left, "_header_declarations", ())) and self_typedef in str().join(getattr(right, "_header_declarations", ()))
 
 
 class DuplicateNameError(ValueError):
@@ -242,13 +242,15 @@ class Module:
     # declarations so their spellings may repeat freely
     name = getattr(entity, "name", None)
     if name is not None and getattr(entity, "opaque", None) is not None:
-      prior = self.names.get(name)
-      if prior is not None and prior is not entity and _conflicting(prior, entity, name):
-        raise DuplicateNameError(
-          f"metac module '{self.name}': the identifier '{name}' is already rendered "
-          f"by a conflicting {type(prior).__name__} entity - the type names must be "
-          f"unique within a module")
-      self.names[name] = entity
+      self_typedef = f"typedef struct {name} {name};"
+      if self_typedef in str().join(getattr(entity, "_header_declarations", ())):
+        prior = self.names.get(name)
+        if prior is not None and prior is not entity:
+          raise DuplicateNameError(
+            f"metac module '{self.name}': the identifier '{name}' is already rendered "
+            f"by a conflicting {type(prior).__name__} entity - the type names must be "
+            f"unique within a module")
+        self.names[name] = entity
     return self
 
   @property
@@ -328,12 +330,15 @@ class Module:
       name = getattr(entity, "name", None)
       if name is None or getattr(entity, "opaque", None) is None:
         continue
+      self_typedef = f"typedef struct {name} {name};"
+      if self_typedef not in str().join(getattr(entity, "_header_declarations", ())):
+        continue
       prior = seen.setdefault(name, entity)
-      if prior is not entity and _conflicting(prior, entity, name):
+      if prior is not entity:
         raise DuplicateNameError(
           f"metac module '{self.name}': the identifier '{name}' is rendered by two "
           f"conflicting {type(prior).__name__} entities - the type names must be unique "
-          f"within a module; name one of the parametrizations explicitly via named()")
+          f"within a module; name one of the parametrizations explicitly")
 
   def distribute_entities(self):
     self.header.entities.update(self.total_entities)

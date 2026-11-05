@@ -217,6 +217,7 @@ def _spelling_words(value):
   spelling = str(value)
   if spelling in _MANGLE_ALIASES:
     return [_MANGLE_ALIASES[spelling]]
+  spelling = re.sub(r"\*+", "_ptr", spelling)
   atom = re.sub(r"[^0-9a-zA-Z]+", "_", spelling).strip("_")
   return [w for w in atom.split("_") if w]
 
@@ -325,9 +326,14 @@ class Template:
       cache[id(self)] = entity
     return entity
 
-  def __call__(self, name, **kwargs):
-    if not isinstance(name, str):
+  def __call__(self, name=None, **kwargs):
+    if name is None:
+      name = self._derived_name()
+    elif not isinstance(name, str):
       raise TraitError(f"{self!r} expects the C type name as the first argument, got {name!r}")
+    slot_clash = kwargs.keys() & set(self._slots)
+    if slot_clash:
+      raise TraitError(f"{self!r}: {sorted(slot_clash)} are type parameters bound by the subscript, not call-time arguments")
     tuning = dict(self._tuning)
     clash = tuning.keys() & kwargs.keys()
     if clash:

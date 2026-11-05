@@ -82,9 +82,9 @@ constructed:
 ```python
 with Module("mymodule") as m:
   m.add(Vector[std.int]("int_vector"))                  # == Vector("int_vector", "int")
-  m.add(Map["const char*", std.int]("str2int"))         # == Map("str2int", "const char*", "int")
+  m.add(Map[std.int, "const char*"]("str2int"))         # == Map("str2int", "int", "const char*")
   m.add(List[Vector[std.int]]("scores"))                # the element is derived as scores_int_vector
-  m.add(List[Vector[std.int]("samples")])               # or named explicitly upfront
+  m.add(List[Vector[std.int]("samples")]("runs"))       # or named explicitly upfront
   m.add(List[Array[std.int].partial(size=8)]("grid"))   # tuning bound inside the subscript
 ```
 

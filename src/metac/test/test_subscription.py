@@ -28,6 +28,8 @@ class TestSubscription(unittest.TestCase):
 
   def test_std_spellings(self):
     self.assertEqual(repr(Vector[std.int]), "Vector<int>")
+    self.assertEqual(repr(Map[std.int, "const char*"]), "Map<int, cstring>")
+    self.assertEqual(Map[std.int, "const char*"]._derived_name(), "int_cstring_map")
     self.assertEqual(repr(Map["const char*", std.double]), "Map<cstring, double>")
     self.assertEqual(Map["const char*", std.double]._derived_name(), "cstring_double_map")
 
@@ -42,9 +44,9 @@ class TestSubscription(unittest.TestCase):
     self.assertIsInstance(v, Vector)
     self.assertEqual(v.name, "values")
     self.assertEqual(str(v.element), "int")
-    m = Map["const char*", std.int]("str2int")
-    self.assertEqual(str(m.element), "const char*")
-    self.assertEqual(str(m.index), "int")
+    m = Map[std.int, "const char*"]("str2int")
+    self.assertEqual(str(m.element), "int")
+    self.assertEqual(str(m.index), "const char*")
 
   def test_partial(self):
     a = Array[std.int].partial(size=8)("matrix")
@@ -129,6 +131,34 @@ class TestSubscription(unittest.TestCase):
     module = metac.module.Module("tplmod")
     module.add(Vector[std.int])
     self.assertEqual(sorted(e.name for e in module.entities), ["int_vector"])
+
+  def test_default_name(self):
+    v = Vector[std.int]()
+    self.assertEqual(v.name, "int_vector")
+    self.assertEqual(str(v.element), "int")
+    a = Array[std.int].partial(size=8)()
+    self.assertEqual(a.name, "int_array_size_8")
+
+  def test_call_slot_clash(self):
+    with self.assertRaises(TraitError):
+      Vector[std.int]("v", element="double")
+
+  def test_pointer_derived_name(self):
+    self.assertEqual(Vector["int*"]._derived_name(), "int_ptr_vector")
+    self.assertEqual(Vector["void*"]._derived_name(), "void_ptr_vector")
+
+  def test_duplicate_detection_with_counted_reference(self):
+    from metac.reference import Counted
+    module = metac.module.Module("dupmod3")
+    v1 = Vector("dup", "int")
+    ref = Counted(v1)
+    v2 = List("dup", "int")
+    # Even if the non-conflicting reference is processed first, conflicting structs must be caught
+    module.entities.add(ref)
+    module.entities.add(v1)
+    module.entities.add(v2)
+    with self.assertRaises(DuplicateNameError):
+      module._check_duplicate_names()
 
 
 # Run tests when imported or executed directly
