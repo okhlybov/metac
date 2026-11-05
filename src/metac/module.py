@@ -287,8 +287,11 @@ class Module:
       # The name may carry a directory of its own (including an absolute one)
       # so the shape check runs against both the anchored and the module
       # directory relative forms of the candidate
-      relative = os.path.relpath(f, self.directory)
-      if f not in produced and any(rx.match(f) or rx.match(relative) for rx in rxs):
+      try:
+        relative = os.path.relpath(f, self.directory)
+      except ValueError: # different drives on Windows
+        relative = None
+      if f not in produced and any(rx.match(f) or (relative is not None and rx.match(relative)) for rx in rxs):
         try:
           os.unlink(f)
         except OSError:

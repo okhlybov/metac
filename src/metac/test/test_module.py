@@ -206,3 +206,16 @@ with tempfile.TemporaryDirectory() as tmpdir:
   assert "nested_auto.c" in state_content
   assert "nested_auto1.c" not in state_content
 
+# Test 13: Cross-mount / cross-drive cleanup (simulating Windows different drives)
+from unittest.mock import patch
+with tempfile.TemporaryDirectory() as tmpdir:
+  prefix = os.path.join(tmpdir, "m")
+  with Module(prefix, source_count=3, stateful=False) as m:
+    for i in range(3):
+      m.add(Code(definitions=f"int x_{i} = {i};"))
+  with patch("os.path.relpath", side_effect=ValueError("path is on mount 'C:', start on mount 'D:'")):
+    with Module(prefix, source_count=1, stateful=False) as m:
+      m.add(Code(definitions="int x = 1;"))
+  assert sorted(os.listdir(tmpdir)) == ["m_auto.c", "m_auto.h"]
+
+
