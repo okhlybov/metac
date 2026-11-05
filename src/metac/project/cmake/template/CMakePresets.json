@@ -43,16 +43,46 @@
       "inherits": "windows"
     },
     {
+      "displayName": "Visual Studio 2026: Debug",
+      "name": "vs2026-Debug",
+      "inherits": "vs2026"
+    },
+    {
+      "displayName": "Visual Studio 2026: Release",
+      "name": "vs2026-Release",
+      "inherits": "vs2026"
+    },
+    {
       "displayName": "Visual Studio 2022",
       "name": "vs2022",
       "generator": "Visual Studio 17 2022",
       "inherits": "windows"
     },
     {
+      "displayName": "Visual Studio 2022: Debug",
+      "name": "vs2022-Debug",
+      "inherits": "vs2022"
+    },
+    {
+      "displayName": "Visual Studio 2022: Release",
+      "name": "vs2022-Release",
+      "inherits": "vs2022"
+    },
+    {
       "displayName": "Visual Studio 2019",
       "name": "vs2019",
       "generator": "Visual Studio 16 2019",
       "inherits": "windows"
+    },
+    {
+      "displayName": "Visual Studio 2019: Debug",
+      "name": "vs2019-Debug",
+      "inherits": "vs2019"
+    },
+    {
+      "displayName": "Visual Studio 2019: Release",
+      "name": "vs2019-Release",
+      "inherits": "vs2019"
     },
     {
       "displayName": "Ninja: Debug",
@@ -93,6 +123,11 @@
   ],
   "buildPresets": [
     {
+      "displayName": "Ninja (Multi-Config)",
+      "name": "ninja",
+      "configurePreset": "ninja"
+    },
+    {
       "displayName": "Ninja Debug",
       "name": "ninja-mc-Debug",
       "configurePreset": "ninja",
@@ -127,39 +162,90 @@
       "jobs": 0
     },
     {
+      "displayName": "Visual Studio 2026",
+      "name": "vs2026",
+      "configurePreset": "vs2026"
+    },
+    {
+      "displayName": "Visual Studio 2026 (MC Debug)",
+      "name": "vs2026-mc-Debug",
+      "configurePreset": "vs2026",
+      "configuration": "Debug"
+    },
+    {
+      "displayName": "Visual Studio 2026 (MC Release)",
+      "name": "vs2026-mc-Release",
+      "configurePreset": "vs2026",
+      "configuration": "Release"
+    },
+    {
       "displayName": "Visual Studio 2026 Debug",
       "name": "vs2026-Debug",
-      "configurePreset": "vs2026",
+      "configurePreset": "vs2026-Debug",
       "configuration": "Debug"
     },
     {
       "displayName": "Visual Studio 2026 Release",
       "name": "vs2026-Release",
-      "configurePreset": "vs2026",
+      "configurePreset": "vs2026-Release",
+      "configuration": "Release"
+    },
+    {
+      "displayName": "Visual Studio 2022",
+      "name": "vs2022",
+      "configurePreset": "vs2022"
+    },
+    {
+      "displayName": "Visual Studio 2022 (MC Debug)",
+      "name": "vs2022-mc-Debug",
+      "configurePreset": "vs2022",
+      "configuration": "Debug"
+    },
+    {
+      "displayName": "Visual Studio 2022 (MC Release)",
+      "name": "vs2022-mc-Release",
+      "configurePreset": "vs2022",
       "configuration": "Release"
     },
     {
       "displayName": "Visual Studio 2022 Debug",
       "name": "vs2022-Debug",
-      "configurePreset": "vs2022",
+      "configurePreset": "vs2022-Debug",
       "configuration": "Debug"
     },
     {
       "displayName": "Visual Studio 2022 Release",
       "name": "vs2022-Release",
-      "configurePreset": "vs2022",
+      "configurePreset": "vs2022-Release",
+      "configuration": "Release"
+    },
+    {
+      "displayName": "Visual Studio 2019",
+      "name": "vs2019",
+      "configurePreset": "vs2019"
+    },
+    {
+      "displayName": "Visual Studio 2019 (MC Debug)",
+      "name": "vs2019-mc-Debug",
+      "configurePreset": "vs2019",
+      "configuration": "Debug"
+    },
+    {
+      "displayName": "Visual Studio 2019 (MC Release)",
+      "name": "vs2019-mc-Release",
+      "configurePreset": "vs2019",
       "configuration": "Release"
     },
     {
       "displayName": "Visual Studio 2019 Debug",
       "name": "vs2019-Debug",
-      "configurePreset": "vs2019",
+      "configurePreset": "vs2019-Debug",
       "configuration": "Debug"
     },
     {
       "displayName": "Visual Studio 2019 Release",
       "name": "vs2019-Release",
-      "configurePreset": "vs2019",
+      "configurePreset": "vs2019-Release",
       "configuration": "Release"
     }
   ],
@@ -191,39 +277,57 @@
       "configurePreset": "make-Release"
     },
     {
+      "displayName": "Visual Studio 2026",
+      "name": "vs2026",
+      "configurePreset": "vs2026",
+      "configuration": "Debug"
+    },
+    {
       "displayName": "Visual Studio 2026 Debug",
       "name": "vs2026-Debug",
-      "configurePreset": "vs2026",
+      "configurePreset": "vs2026-Debug",
       "configuration": "Debug"
     },
     {
       "displayName": "Visual Studio 2026 Release",
       "name": "vs2026-Release",
-      "configurePreset": "vs2026",
+      "configurePreset": "vs2026-Release",
       "configuration": "Release"
+    },
+    {
+      "displayName": "Visual Studio 2022",
+      "name": "vs2022",
+      "configurePreset": "vs2022",
+      "configuration": "Debug"
     },
     {
       "displayName": "Visual Studio 2022 Debug",
       "name": "vs2022-Debug",
-      "configurePreset": "vs2022",
+      "configurePreset": "vs2022-Debug",
       "configuration": "Debug"
     },
     {
       "displayName": "Visual Studio 2022 Release",
       "name": "vs2022-Release",
-      "configurePreset": "vs2022",
+      "configurePreset": "vs2022-Release",
       "configuration": "Release"
+    },
+    {
+      "displayName": "Visual Studio 2019",
+      "name": "vs2019",
+      "configurePreset": "vs2019",
+      "configuration": "Debug"
     },
     {
       "displayName": "Visual Studio 2019 Debug",
       "name": "vs2019-Debug",
-      "configurePreset": "vs2019",
+      "configurePreset": "vs2019-Debug",
       "configuration": "Debug"
     },
     {
       "displayName": "Visual Studio 2019 Release",
       "name": "vs2019-Release",
-      "configurePreset": "vs2019",
+      "configurePreset": "vs2019-Release",
       "configuration": "Release"
     }
   ]

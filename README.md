@@ -236,7 +236,7 @@ cmake --build --preset ninja-Debug
 ./build/ninja-Debug/readings
 ```
 
-The scaffolder offers single-config `ninja-Debug`/`ninja-Release` presets on every platform, `make-Debug`/`make-Release` on POSIX, and `vs2022`/`vs2026` Visual Studio presets on Windows (where the binary is `readings.exe`). The undecorated `ninja` preset is the multi-config Ninja one - all configurations in a single `build/ninja` directory, with Debug as the default and the rest one `--config` away.
+The scaffolder offers single-config `ninja-Debug`/`ninja-Release` presets on every platform, `make-Debug`/`make-Release` on POSIX, and `vs2022-Debug`/`vs2022-Release` (along with multi-config `vs2022`, `vs2019`, and `vs2026`) Visual Studio presets on Windows (where the binary is `readings.exe`). The undecorated `ninja` preset is the multi-config Ninja one - all configurations in a single `build/ninja` directory, with Debug as the default and the rest one `--config` away.
 
 With SCons:
 

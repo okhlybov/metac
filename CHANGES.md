@@ -2,6 +2,7 @@
 
 - C++ -style types parametrization.
 - SCons stage directory.
+- CI fixes.
 
 # 0.0.3
 
