@@ -199,6 +199,32 @@ def test_backend_scaffolders():
       assert rc_up == 0
 
 
+def test_scons_build_dir_scaffold():
+  with tempfile.TemporaryDirectory() as tmpdir:
+    rc = metac.sample.generate(directory=tmpdir, project="sample_scons", backend="scons")
+    assert rc == 0
+    res = subprocess.run(["scons"], cwd=tmpdir, capture_output=True, text=True)
+    assert res.returncode == 0, f"scons build failed: {res.stderr}\n{res.stdout}"
+
+    # Binary and objects must be inside build/scons
+    build_dir = os.path.join(tmpdir, "build", "scons")
+    exe_name = "sample_scons.exe" if sys.platform == "win32" else "sample_scons"
+    assert os.path.exists(os.path.join(build_dir, exe_name)), f"Executable not found in {build_dir}"
+    assert os.path.exists(os.path.join(build_dir, "sample_scons.o")), "Object file not found in build/scons"
+
+    # Root directory must be free of object files, executable, and .sconsign
+    root_files = os.listdir(tmpdir)
+    assert exe_name not in root_files, "Executable leaked into root directory"
+    assert "sample_scons.o" not in root_files, "Object file leaked into root directory"
+    assert ".sconsign.dblite" not in root_files, ".sconsign.dblite leaked into root directory"
+
+    # scons -c cleanly removes targets from build/scons
+    res_clean = subprocess.run(["scons", "-c"], cwd=tmpdir, capture_output=True, text=True)
+    assert res_clean.returncode == 0, f"scons -c failed: {res_clean.stderr}\n{res_clean.stdout}"
+    assert not os.path.exists(os.path.join(build_dir, exe_name)), "Executable not removed by scons -c"
+    assert not os.path.exists(os.path.join(build_dir, "sample_scons.o")), "Object file not removed by scons -c"
+
+
 
 def test_cli_factored_helper():
   from metac.scaffolder import cli
@@ -268,6 +294,7 @@ if __name__ == "__main__":
   test_custom_tailored_metacignore()
   test_metacignore_negation_rules()
   test_backend_scaffolders()
+  test_scons_build_dir_scaffold()
   test_cli_factored_helper()
   test_cli_exit_codes()
   print("All scaffolder tests passed!")

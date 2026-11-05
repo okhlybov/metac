@@ -103,7 +103,7 @@ jobs:
         run: |
           python -m metac.scons build/sample_scons
           scons -C build/sample_scons
-          ./build/sample_scons/sample_scons
+          ./build/sample_scons/build/scons/sample_scons
 
       - name: Meson backend
         run: |

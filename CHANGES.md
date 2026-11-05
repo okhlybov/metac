@@ -1,6 +1,7 @@
 #
 
-- C++ -style types parametrization
+- C++ -style types parametrization.
+- SCons stage directory.
 
 # 0.0.3
 

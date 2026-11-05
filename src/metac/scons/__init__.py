@@ -28,13 +28,8 @@ Import("*") if "Import" in globals() else None
 HEADER = "{module.header.file_name}"
 SOURCES = {sources_block}
 
-if "env" in globals() and SOURCES:
-  OBJECTS = env.Object(SOURCES)
-else:
-  OBJECTS = []
-
 if "Return" in globals():
-  Return("HEADER SOURCES OBJECTS")
+  Return("HEADER SOURCES")
 """
     p = pathlib.Path(scons_file)
     if not p.exists() or p.read_text() != contents:
@@ -148,7 +143,7 @@ def add_metac_module(env, module, directory=".", main_dependency=None, command=N
       if res.returncode != 0:
         raise _UserError(f"MetaC generator failed for '{module}':\n{res.stderr}\n{res.stdout}")
 
-  loc = {"env": env}
+  loc = {}
   with open(module_scons, "r") as f:
     exec(f.read(), loc)
   header = loc.get("HEADER")
@@ -157,7 +152,7 @@ def add_metac_module(env, module, directory=".", main_dependency=None, command=N
   source_paths = [os.path.join(directory, s) if directory != "." else s for s in sources]
 
   env.AppendUnique(CPPPATH=[directory])
-  objs = env.Object(source_paths) if source_paths else []
+  objs = loc.get("OBJECTS", [])
   # The forced generation mode only runs the generator unconditionally - the
   # C-level build avoidance stays content-driven, matching the cmake and meson
   # backends, so recompilation happens solely when the emitted code differs

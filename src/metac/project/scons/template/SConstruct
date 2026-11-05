@@ -56,11 +56,15 @@ metac_mod = env.MetaCModule(
 # avoidance stays content-driven - recompilation happens only when the emitted
 # code actually differs, matching the cmake and meson backends
 
+build_dir = os.path.join("build", "scons")
+SConsignFile(os.path.join(build_dir, ".sconsign"))
+env.VariantDir(build_dir, ".", duplicate=0)
+
 app_sources = [f"{project}.c"] if os.path.exists(f"{project}.c") else []
-all_sources = app_sources + metac_mod.sources
+all_sources = [os.path.join(build_dir, s) for s in app_sources + metac_mod.sources]
 
 if all_sources:
-  app = env.Program(target=project, source=all_sources)
+  app = env.Program(target=os.path.join(build_dir, project), source=all_sources)
   Default(app)
 
 if os.path.exists("Doxyfile"):
