@@ -40,7 +40,7 @@ jobs:
             cxx: c++
           - name: windows-msvc
             os: windows-latest
-            preset: vs2022-Debug
+            preset: vs2026-Debug            
     env:
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
