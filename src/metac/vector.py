@@ -5,7 +5,7 @@ from metac.sequential import Sequential
 from metac.insertable import Insertable
 from metac.range import DirectAccess
 from metac.container import _Range
-from metac.core import out, inout, Macro, Callable, Indirection, _StructRenderer
+from metac.core import out, inout, Macro, Callable, Indirection, _StructRenderer, can_alias, alias_check
 
 
 #
@@ -203,12 +203,22 @@ class Vector(_StructRenderer, Assignable, Sortable, Sequential, Insertable):
     destroy_i = self.element.destroy(target_i) if self.element.destructible else str()
     
     with self.set as m:
-      m.inline_code = lambda m: f"""
-        assert(target);
-        assert({self.indexed(m.target, m.index)});
-        {destroy_i};
-        {self.element.copy(target_i, m.element)};
-      """
+      def _set_code(m):
+        destroy_slot = f"{destroy_i};" if destroy_i else ""
+        body = f"""
+          {destroy_slot}
+          {self.element.copy(target_i, m.element)};
+        """
+        if can_alias(self.element):
+          body = f"""
+            if({alias_check(self.element, target_i, m.element)}) {{{body}}}
+          """
+        return f"""
+          assert(target);
+          assert({self.indexed(m.target, m.index)});
+          {body}
+        """
+      m.inline_code = _set_code
 
     # Resize follows the std::vector::resize semantics: growing default-initializes the
     # new tail elements while shrinking destroys the removed tail. Growing reallocates

@@ -1,6 +1,6 @@
 import metac.std as std
 from metac.hash import XorRot
-from metac.core import out, _type
+from metac.core import out, _type, can_alias, alias_check
 from metac.core import Composite, _StructRenderer, Primitive, Indirection
 
 
@@ -152,10 +152,8 @@ class Record(_StructRenderer, Composite):
     # means - the composite slots compare by address, the owning pointer fields
     # (strings, counted references) by the pointer value itself; the value-passed
     # primitives cannot alias
-    self_aliasing = isinstance(type, Composite) and not isinstance(type, (Primitive, Indirection))
-    pointer_aliasing = isinstance(type, Indirection)
-    guarded = self_aliasing or pointer_aliasing
-    brief_note = " Assigning the field to itself through its own view is a recognized no-op." if guarded else ""
+    self_aliasing = can_alias(type)
+    brief_note = " Assigning the field to itself through its own view is a recognized no-op." if self_aliasing else ""
     with self.method(None, ("set", field), {"target": out(self), "value": type}, visibility=self.visibility, constraint=lambda: type.copyable, brief=f"Set the {field} field",
       description=f"""
         Replaces the contents of the {field} field with the given value - the previously
@@ -173,11 +171,7 @@ class Record(_StructRenderer, Composite):
         """
         if self_aliasing:
           body = f"""
-            if(&{target}.{field} != value) {{{body}}}
-          """
-        elif pointer_aliasing:
-          body = f"""
-            if({target}.{field} != value) {{{body}}}
+            if({alias_check(type, f"{target}.{field}", "value")}) {{{body}}}
           """
         return body
       m.inline_code = _writer_code

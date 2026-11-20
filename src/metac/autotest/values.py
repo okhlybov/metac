@@ -460,6 +460,13 @@ x_copt.unit(f"{copt.set}(): engage with an owning value", f"""
   {{ char* v = {copt.value(ct)}; TEST_EQUAL_CHARS(v, "hello"); {_cstring.destroy("v")}; }}
 """)
 
+x_copt.unit(f"{copt.set}(): self-assignment with view", f"""
+  {copt.set(ct, s("hello"))};
+  {copt.set(ct, copt.value_view(ct))};
+  TEST_TRUE({copt.primed(ct)});
+  {{ char* v = {copt.value(ct)}; TEST_EQUAL_CHARS(v, "hello"); {_cstring.destroy("v")}; }}
+""")
+
 x_copt.unit(f"{copt.set}(): overwrite releases the previous value", f"""
   {copt.set(ct, s("one"))};
   {copt.set(ct, s("two"))};
@@ -479,8 +486,8 @@ x_copt.unit(f"{copt.reset}(): release the value back to NULL", f"""
 # --------------------------------------------------------------------------- #
 
 _comp_arc = Counted(_composite, name="at_composite_counted")
-var = Variant("at_content_variant", {"amount": "int", "composite": _comp_arc})
-x_var = Type(var, dependencies=[_composite])
+var = Variant("at_content_variant", {"amount": "int", "text": _cstring, "composite": _comp_arc})
+x_var = Type(var, dependencies=[_composite, _cstring])
 
 vt = var.variable("vt")
 vt2 = var.variable("vt2")
@@ -496,6 +503,7 @@ x_var.cleanup(f"""
 x_var.unit(f"{var.create}(): create in the empty state", f"""
   TEST_TRUE({var.is_empty(vt)});
   TEST_FALSE({var.is_amount(vt)});
+  TEST_FALSE({var.is_text(vt)});
   TEST_FALSE({var.is_composite(vt)});
 """)
 
@@ -544,6 +552,14 @@ x_var.unit(f"{var.set_composite}(): self-assignment through the own view is a no
   TEST_TRUE({var.is_composite(vt)});
   TEST_EQUAL(*{var.get_composite_view(vt)}->value, 7);
   {_comp_arc.destroy(pv)};
+""")
+
+_var_text_self_view = var.get_text_view(vt)
+x_var.unit(f"{var.set_text}(): self-assignment through the own view is a no-op", f"""
+  {var.set_text(vt, s("keep me"))};
+  {var.set_text(vt, _var_text_self_view)};
+  TEST_TRUE({var.is_text(vt)});
+  TEST_EQUAL_CHARS({var.get_text_view(vt)}, "keep me");
 """)
 
 x_var.unit(f"{var.emplace_amount}(): construct the alternative in place", f"""
@@ -881,6 +897,12 @@ x_sarr.unit(f"{sarr.emplace}(): emplace destroys the previous element in place",
   TEST_EQUAL_CHARS({sarr.view(sat, 1)}, "hello");
   {sarr.emplace(sat, 1)};
   TEST_EQUAL_CHARS({sarr.view(sat, 1)}, "");
+""")
+
+x_sarr.unit(f"{sarr.set}(): self-assignment with view", f"""
+  {sarr.set(sat, 1, s("hello"))};
+  {sarr.set(sat, 1, sarr.view(sat, 1))};
+  TEST_EQUAL_CHARS({sarr.view(sat, 1)}, "hello");
 """)
 
 

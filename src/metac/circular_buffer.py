@@ -5,7 +5,7 @@ from metac.sequential import Sequential
 from metac.insertable import Insertable
 from metac.range import DirectAccess
 from metac.container import _Range
-from metac.core import out, inout, Callable, Indirection, Macro, _StructRenderer, Composite, Primitive
+from metac.core import out, inout, Callable, Indirection, Macro, _StructRenderer, Composite, Primitive, can_alias, alias_check
 
 
 # Common base class for circular ring buffer containers
@@ -116,7 +116,7 @@ class _CircularBuffer(_StructRenderer, Assignable, Sortable, Sequential, Inserta
         return {slot.bind(m.result)};
       """
 
-    self_aliasing = isinstance(self.element, Composite) and not isinstance(self.element, Primitive)
+    self_aliasing = can_alias(self.element)
 
     with self.set as m:
       def _set_code(m):
@@ -129,9 +129,8 @@ class _CircularBuffer(_StructRenderer, Assignable, Sortable, Sequential, Inserta
           {self.element.copy(slot, m.element)};
         """
         if self_aliasing:
-          alias_check = f"({slot_expr}) != {m.element}" if isinstance(self.element, Indirection) else f"&{slot_expr} != {m.element}"
           body = f"""
-            if({alias_check}) {{{body}}}
+            if({alias_check(self.element, slot_expr, m.element)}) {{{body}}}
           """
         return f"""
           assert(target);
@@ -224,9 +223,8 @@ class _CircularBuffer(_StructRenderer, Assignable, Sortable, Sequential, Inserta
           target->head = (target->head + 1) % {cap};
         """
         if self_aliasing:
-          alias_equal = f"target->elements[target->head] == {m.element}" if isinstance(self.element, Indirection) else f"&target->elements[target->head] == {m.element}"
           overwrite_body = f"""
-            if({alias_equal}) {{
+            if({alias_check(self.element, "target->elements[target->head]", m.element, equal=True)}) {{
               target->head = (target->head + 1) % {cap};
             }} else {{
               {overwrite_body}
@@ -276,9 +274,8 @@ class _CircularBuffer(_StructRenderer, Assignable, Sortable, Sequential, Inserta
           {self.element.copy(new_head_slot, m.element)};
         """
         if self_aliasing:
-          alias_check = f"target->elements[new_head] != {m.element}" if isinstance(self.element, Indirection) else f"&target->elements[new_head] != {m.element}"
           overwrite_body = f"""
-            if({alias_check}) {{
+            if({alias_check(self.element, "target->elements[new_head]", m.element)}) {{
               {overwrite_body}
             }}
           """

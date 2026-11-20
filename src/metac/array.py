@@ -5,7 +5,7 @@ from metac.sortable import Sortable
 from metac.sequential import Sequential
 from metac.range import DirectAccess
 from metac.container import _Range
-from metac.core import inout, Callable, Indirection, _StructRenderer
+from metac.core import inout, Callable, Indirection, _StructRenderer, can_alias, alias_check
 
 
 #
@@ -201,14 +201,24 @@ class Array(_StructRenderer, Assignable, Sortable, Sequential):
       """
 
     with self.set as m:
-      slot = self.element.variable(f"target->elements[{m.index}]")
-      destroy_slot = self.element.destroy(slot) if self.element.destructible else ""
-      m.inline_code = lambda m: f"""
-        assert(target);
-        assert({self.indexed(m.target, m.index)});
-        {destroy_slot};
-        {self.element.copy(slot, m.element)};
-      """
+      def _set_code(m):
+        slot_expr = f"target->elements[{m.index}]"
+        slot = self.element.variable(slot_expr)
+        destroy_slot = f"{self.element.destroy(slot)};" if self.element.destructible else ""
+        body = f"""
+          {destroy_slot}
+          {self.element.copy(slot, m.element)};
+        """
+        if can_alias(self.element):
+          body = f"""
+            if({alias_check(self.element, slot_expr, m.element)}) {{{body}}}
+          """
+        return f"""
+          assert(target);
+          assert({self.indexed(m.target, m.index)});
+          {body}
+        """
+      m.inline_code = _set_code
 
     with self.method(None, "emplace", {"target": inout(self), "index": self.index} | self.element.constructor_parameters,
       constraint=lambda: self.element.emplaceable, brief="Construct the element at index in place",

@@ -1,4 +1,4 @@
-from metac.core import inout
+from metac.core import inout, can_alias
 from metac.indexable import Indexable
 
 
@@ -12,18 +12,16 @@ class Assignable(Indexable):
     super().__setup__()
 
     valid_index = lambda: self.index.comparable or self.index.orderable
+    brief_note = " Assigning the element to itself through its own view is a recognized no-op." if can_alias(self.element) else ""
 
     self.method(None, "set", {"target": inout(self), "index": self.index, "element": self.element}, constraint=lambda: valid_index() and self.element.copyable, brief="Set the element at index",
-      description="""
+      description=f"""
         Associates the element with the index - either storing it at the brand new entry
         or replacing the contents of the element already held at the index in place.
         The cost matches the underlying implementation: expected O(1) for hash-based and direct-indexed
-        containers, expected O(log n) for tree-based containers.
-        The previously held element is destroyed before the new one is copied in, so the
-        element must not alias the storage being replaced - passing a view into the very
-        entry being overwritten (e.g. set(t, i, view(t, i))) reads destroyed storage.
+        containers, expected O(log n) for tree-based containers.{brief_note}
 
         @param[in,out] target the collection to update
         @param[in] index the index to assign the element at
-        @param[in] element the element to store - the element previously held at the index is destroyed; must not alias that entry
+        @param[in] element the element to store - the element previously held at the index is destroyed
       """)

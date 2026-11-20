@@ -16,7 +16,7 @@ class String(_AliasRenderer, Indirection, Assignable, Sequential):
 
   def __init__(self, name, *args, formatting_operations=True, **kwargs):
     self.formatting_operations = bool(formatting_operations)
-    super().__init__(std.char, name, std.char, std.size_t, prefix=name, dependencies=(std.string_h, std.stdlib_h, metac.memory._allocate_code, _static_code), **kwargs)
+    super().__init__(std.char, name, std.char, std.size_t, prefix=name, dependencies=(std.string_h, std.stdlib_h, std.assert_h, metac.memory._allocate_code, _static_code), **kwargs)
     self.range = Range(self)
 
   def __setup__(self):
@@ -65,19 +65,24 @@ class String(_AliasRenderer, Indirection, Assignable, Sequential):
       m.code = """
         if(source) {
           #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
-            return strdup(source);
+            char *s = strdup(source);
           #elif defined(METAC_MSVC) || defined(__POCC__)
-            return _strdup(source);
+            char *s = _strdup(source);
           #elif defined(__BORLANDC__) || defined(__TURBOC__) || defined(__DMC__) || defined(__SC__) || defined(__LCC__) || defined(__TINYC__)
-            return strdup(source);
-          #elif defined(__MINGW32__) || defined(__MINGW64__) || (defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200809L) || defined(_GNU_SOURCE) || defined(__unix__) || defined(__APPLE__)
-            return strdup(source);
+            char *s = strdup(source);
+          #elif (defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200809L) || defined(_GNU_SOURCE) || ((defined(__MINGW32__) || defined(__MINGW64__) || defined(__unix__) || defined(__APPLE__)) && !defined(__STRICT_ANSI__))
+            char *s = strdup(source);
           #else
             size_t n = strlen(source) + 1;
             char *s = (char*)_metac_malloc(n);
             memcpy(s, source, n);
             return s;
           #endif
+          if(!s) {
+            assert(0 && "strdup() returned NULL");
+            abort();
+          }
+          return s;
         } else return (char*)_metac_empty_string;
       """
       

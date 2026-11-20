@@ -50,6 +50,15 @@ x.unit(f"{type.hash}(): set element of vector", f"""
   {type.set(t, 0, s("Zzz"))};
 """)
 
+x.unit(f"{type.set}(): self assignment with view", f"""
+  {type.set(t, 0, s("hello"))};
+  {type.set(t, 1, s("world"))};
+  {type.set(t, 0, type.view(t, 0))};
+  TEST_EQUAL_CHARS( {type.view(t, 0)}, {s("hello")} );
+  {type.set(t, 0, type.view(t, 1))};
+  TEST_EQUAL_CHARS( {type.view(t, 0)}, {s("world")} );
+""")
+
 x.unit(f"{type.hash}(): contains string", f"""
   TEST_FALSE( {type.empty(t)} );
   {type.set(t, 0, s("Abc"))};

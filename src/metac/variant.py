@@ -1,6 +1,6 @@
 import metac.std as std
 from metac.hash import XorRot
-from metac.core import out, _type
+from metac.core import out, _type, can_alias, alias_check
 from metac.core import Composite, _StructRenderer, Primitive, Indirection
 
 
@@ -166,7 +166,7 @@ class Variant(_StructRenderer, Composite):
     # reads from, so the recognized case short-circuits into the no-op it means.
     # The pointer-passed composite alternatives can alias; the value-passed
     # primitives cannot
-    self_aliasing = isinstance(type, Composite) and not isinstance(type, (Primitive, Indirection))
+    self_aliasing = can_alias(type)
     brief_note = " Setting the alternative to itself through its own view is a recognized no-op." if self_aliasing else ""
     with self.method(None, ("set", name), {"target": out(self), "value": type}, visibility=self.visibility, constraint=lambda: type.copyable, brief=f"Set the {name} value",
       description=f"""
@@ -178,7 +178,7 @@ class Variant(_StructRenderer, Composite):
       """) as m:
       target = f"({m.target.bind(self)})"
       guard = f"""
-        if({target}.tag == {index} && (const void*)value == (const void*)&{target}.value.{name}) return;
+        if({target}.tag == {index} && {alias_check(type, f"{target}.value.{name}", "value", equal=True)}) return;
       """ if self_aliasing else ""
       m.inline_code = f"""
         {guard}

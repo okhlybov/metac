@@ -1,6 +1,6 @@
 import metac.std as std
 from metac.hash import XorRot
-from metac.core import inout, _type
+from metac.core import inout, _type, can_alias, alias_check
 from metac.core import Composite
 
 
@@ -219,18 +219,24 @@ class Option(Composite):
       """
 
     if element.copyable:
+      self_aliasing = can_alias(element)
+      brief_note = " Engaging with a view of the currently held value is a recognized no-op." if self_aliasing else ""
       with self.method(None, "set", {"target": inout(self), "element": element}, constraint=lambda: element.copyable, brief="Engage with a copy of the element",
-        description="""
+        description=f"""
           Releases the currently held value when present and engages the optional with a
-          copy of the given element.
+          copy of the given element.{brief_note}
 
           @param[in,out] target the optional to engage
           @param[in] element the element to copy
         """) as m:
         engaged_mark = self._mark(self.engaged_state)(e)
         engaged_code = f"\n          {engaged_mark};" if engaged_mark else ""
+        guard = f"""
+          if({self._engaged(e)} && {alias_check(element, self._slot(e), m.element, equal=True)}) return;
+        """ if self_aliasing else ""
         m.inline_code = f"""
           assert(target);
+          {guard}
           if({self._engaged(e)}) {{{destroy_slot};}}
           {element.copy(self._slot_var(e), m.element)};{engaged_code}
         """

@@ -5,7 +5,7 @@ from metac.range import DirectAccess
 from metac.sequential import Sequential
 from metac.insertable import Insertable
 from metac.container import _Range
-from metac.core import inout, out, Indirection, _StructRenderer, Callable, Composite, Primitive
+from metac.core import inout, out, Indirection, _StructRenderer, Callable, Composite, Primitive, can_alias, alias_check
 
 
 #
@@ -289,7 +289,7 @@ class Vector(_StructRenderer, Assignable, Sortable, Sequential, Insertable):
         return {self.element.variable(f"target->chunks[{m.index} >> {self.chunk_shift}][{m.index} & {self.chunk_mask}]").bind(m.result)};
       """
 
-    self_aliasing = isinstance(self.element, Composite) and not isinstance(self.element, Primitive)
+    self_aliasing = can_alias(self.element)
 
     with self.set as m:
       def _set_code(m):
@@ -300,9 +300,8 @@ class Vector(_StructRenderer, Assignable, Sortable, Sequential, Insertable):
           {self.element.copy(self.element.variable(slot), m.element)};
         """
         if self_aliasing:
-          alias_check = f"({slot}) != {m.element}" if isinstance(self.element, Indirection) else f"&{slot} != {m.element}"
           body = f"""
-            if({alias_check}) {{{body}}}
+            if({alias_check(self.element, slot, m.element)}) {{{body}}}
           """
         return f"""
           assert(target);

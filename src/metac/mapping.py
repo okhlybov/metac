@@ -1,6 +1,6 @@
 import metac.std as std
 from metac.record import Record
-from metac.core import inout, Callable, _StructRenderer, Macro, enforced, Type, Comparable, Orderable, Coerce
+from metac.core import inout, Callable, _StructRenderer, Macro, enforced, Type, Comparable, Orderable, Coerce, can_alias, alias_check
 from metac.container import _Range
 from metac.range import Forward, Bidirectional
 from metac.traversable import Traversable
@@ -78,12 +78,22 @@ class _Entry(Record):
           assert(target);
         """
 
+    self_aliasing = can_alias(self.element)
     with self.method(None, ("replace", "element"), {"target": inout(self), "element": self.element}, hidden=True, visibility="internal", constraint=lambda: self.element.copyable, brief="Replace element in-place (internal)") as m:
-      m.code = lambda m: f"""
-        assert(target);
-        {self.destroy_element(m.target)};
-        {self.element.copy(_element, m.element)};
-      """
+      def _replace_code(m):
+        body = f"""
+          {self.destroy_element(m.target)};
+          {self.element.copy(_element, m.element)};
+        """
+        if self_aliasing:
+          body = f"""
+            if({alias_check(self.element, _element, m.element)}) {{{body}}}
+          """
+        return f"""
+          assert(target);
+          {body}
+        """
+      m.code = _replace_code
 
     self.hash_lookup_hash = Macro(std.size_t, {"target": self}, lambda target: str(self.index.hash( self.index.variable(f"(({target}).index)") )))
     self.hash_lookup_equal = Macro("int", {"left": self, "right": self}, lambda left, right: str(self.index.equal( self.index.variable(f"(({left}).index)"), self.index.variable(f"(({right}).index)") )))

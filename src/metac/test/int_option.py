@@ -1,6 +1,7 @@
 from metac.test import *
 from metac.option import Option
 from metac.vector import Vector
+from metac.test.cstring import cstring, s
 
 
 x = Type(type := Option("int_option", "int"))
@@ -186,4 +187,26 @@ v.unit(f"{vec.push}(): options as vector elements", f"""
   TEST_TRUE( {type.primed(vec.view(vt, 0))} );
   TEST_TRUE( {type.primed(vec.view(vt, 1))} );
   TEST_TRUE( {type.empty(vec.view(vt, 2))} );
+""")
+
+
+# Owning string option self-assignment
+z = Type(cstr_opt := Option("cstring_option", cstring))
+co = cstr_opt.variable("co")
+
+z.setup(f"""
+  {co.definition};
+  {cstr_opt.create(co)};
+""")
+z.cleanup(f"""
+  {cstr_opt.destroy(co)};
+""")
+
+z.unit(f"{cstr_opt.set}(): engage with an owning string and self-assignment with view", f"""
+  {cstr_opt.set(co, s("hello"))};
+  TEST_TRUE( {cstr_opt.primed(co)} );
+  {{ char* v = {cstr_opt.value(co)}; TEST_EQUAL_CHARS( v, {s("hello")} ); cstring_free(v); }}
+  {cstr_opt.set(co, cstr_opt.value_view(co))};
+  TEST_TRUE( {cstr_opt.primed(co)} );
+  {{ char* v = {cstr_opt.value(co)}; TEST_EQUAL_CHARS( v, {s("hello")} ); cstring_free(v); }}
 """)

@@ -1,10 +1,11 @@
 from metac.test import *
 from metac.variant import Variant
 from metac.test.custom_composite_arc import type as arc
+from metac.test.cstring import cstring, s
 
 
-# A merged variant testing both a primitive and a (heap-owning, shared-reference) composite alternative
-x = Type(type := Variant("content_variant", {"amount": "int", "composite": arc}))
+# A merged variant testing a primitive, an owning string, and a (heap-owning, shared-reference) composite alternative
+x = Type(type := Variant("content_variant", {"amount": "int", "text": cstring, "composite": arc}))
 
 t = type.variable("t")
 t1 = type.variable("t1")
@@ -23,7 +24,17 @@ x.cleanup(f"""
 x.unit(f"{type.create}(): create variant in the empty state", f"""
   TEST_TRUE( {type.is_empty(t)} );
   TEST_FALSE( {type.is_amount(t)} );
+  TEST_FALSE( {type.is_text(t)} );
   TEST_FALSE( {type.is_composite(t)} );
+""")
+
+x.unit(f"{type.set_text}(): set text and self-assignment through own view", f"""
+  {type.set_text(t, s("hello"))};
+  TEST_TRUE( {type.is_text(t)} );
+  TEST_EQUAL_CHARS( {type.get_text_view(t)}, {s("hello")} );
+  {type.set_text(t, type.get_text_view(t))};
+  TEST_TRUE( {type.is_text(t)} );
+  TEST_EQUAL_CHARS( {type.get_text_view(t)}, {s("hello")} );
 """)
 
 x.unit(f"{type.hash}(): hash of the empty variant", f"""

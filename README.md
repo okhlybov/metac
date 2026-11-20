@@ -39,10 +39,13 @@ Requires Python ≥ 3.10. `metac` itself has zero dependencies.
 **1. Define a module** — e.g. `mymodule.py`:
 
 ```python
+import metac.core
 from metac.module import Module
 from metac.vector import Vector
 from metac.chained_hash_map import Map
 import metac.std as std
+
+metac.core.decorator = metac.core.snake_decorator
 
 with Module("mymodule") as m:
   m.add(Vector("int_vector", "int"))
@@ -58,7 +61,7 @@ with Module("mymodule") as m:
 
 int_vector v;
 int_vector_create(&v);
-int_vector_set(&v, 0, 42);
+int_vector_push(&v, 42);
 assert(int_vector_get(&v, 0) == 42);
 
 /* iterate */

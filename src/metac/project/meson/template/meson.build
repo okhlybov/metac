@@ -75,7 +75,7 @@ need_generator = regen_opt.enabled() or (regen_opt.auto() and py.found())
 if need_generator
   stamp_file = meson.current_build_dir() / (module_name + '.stamp')
   module_gen = custom_target(
-    module_name + '-generate',
+    'metac-' + module_name + '-generate',
     input: module_name + '.py',
     output: module_name + '.stamp',
     command: [py, '@INPUT@', module_name, '--backend=meson', stamp_file],

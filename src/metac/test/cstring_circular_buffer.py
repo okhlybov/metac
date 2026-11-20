@@ -90,6 +90,15 @@ x.unit(f"{type.copy}(), {type.equal}(): copy and equality with cstring", f"""
   {type.destroy(t2)};
 """)
 
+x.unit(f"{type.set}(): self assignment with view", f"""
+  {type.push(t, s("hello"))};
+  {type.push(t, s("world"))};
+  {type.set(t, 0, type.view(t, 0))};
+  TEST_EQUAL_CHARS( {type.view(t, 0)}, {s("hello")} );
+  {type.set(t, 0, type.view(t, 1))};
+  TEST_EQUAL_CHARS( {type.view(t, 0)}, {s("world")} );
+""")
+
 
 #
 # 2. Tests for Dynamic circular buffer with cstring
@@ -124,6 +133,15 @@ y.unit(f"{dtype.push}(): dynamic buffer push and overwrite with cstring", f"""
   v = {dtype.pop(dt)};
   TEST_EQUAL_CHARS( v, {s("beta")} );
   {cstring.destroy("v")};
+""")
+
+y.unit(f"{dtype.set}(): dynamic buffer self assignment with view", f"""
+  {dtype.push(dt, s("hello"))};
+  {dtype.push(dt, s("world"))};
+  {dtype.set(dt, 0, dtype.view(dt, 0))};
+  TEST_EQUAL_CHARS( {dtype.view(dt, 0)}, {s("hello")} );
+  {dtype.set(dt, 0, dtype.view(dt, 1))};
+  TEST_EQUAL_CHARS( {dtype.view(dt, 0)}, {s("world")} );
 """)
 
 y.unit(f"{dtype.set_capacity}(): dynamic buffer resizing with cstring", f"""

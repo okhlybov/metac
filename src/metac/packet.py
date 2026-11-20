@@ -6,7 +6,7 @@ from metac.sequential import Sequential
 from metac.insertable import Insertable
 from metac.range import DirectAccess
 from metac.container import _Range
-from metac.core import out, inout, Callable, Indirection, _StructRenderer
+from metac.core import out, inout, Callable, Indirection, _StructRenderer, can_alias, alias_check
 
 
 #
@@ -254,11 +254,18 @@ class Packet(_StructRenderer, Assignable, Sortable, Sequential, Insertable):
       def _set(m):
         slot = self._element(m.target, m.index)
         destroy_slot = f"{self.element.destroy(slot)};" if self.element.destructible else ""
+        body = f"""
+          {destroy_slot}
+          {self.element.copy(slot, m.element)};
+        """
+        if can_alias(self.element):
+          body = f"""
+            if({alias_check(self.element, slot, m.element)}) {{{body}}}
+          """
         return f"""
           assert(target);
           assert({self.indexed(m.target, m.index)});
-          {destroy_slot}
-          {self.element.copy(slot, m.element)};
+          {body}
         """
       m.inline_code = _set
 

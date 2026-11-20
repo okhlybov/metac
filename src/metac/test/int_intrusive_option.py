@@ -154,6 +154,13 @@ y.unit(f"{cstr.set}(): engage with an owning value", f"""
   {{ char* v = {cstr.value(c)}; TEST_EQUAL_CHARS( v, {s("hello")} ); cstring_free(v); }}
 """)
 
+y.unit(f"{cstr.set}(): self-assignment with view", f"""
+  {cstr.set(c, s("hello"))};
+  {cstr.set(c, cstr.value_view(c))};
+  TEST_TRUE( {cstr.primed(c)} );
+  {{ char* v = {cstr.value(c)}; TEST_EQUAL_CHARS( v, {s("hello")} ); cstring_free(v); }}
+""")
+
 y.unit(f"{cstr.set}(): overwrite releases the previous value", f"""
   {cstr.set(c, s("one"))};
   {cstr.set(c, s("two"))};

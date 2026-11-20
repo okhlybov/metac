@@ -1328,6 +1328,27 @@ def inout(obj):
   return Callable.InOut(obj)
 
 
+def can_alias(type):
+  """Checks whether values of the type can alias destination storage in assignment."""
+  t = _type(type)
+  return isinstance(t, Indirection) or (isinstance(t, Composite) and not isinstance(t, Primitive))
+
+
+def alias_check(type, slot, value, equal=False):
+  """Generates an expression checking whether slot and value alias.
+
+  For Indirection types, compares the pointer values.
+  For other Composite types, compares the object addresses.
+  If equal=True, returns the condition for self-assignment (slot == value).
+  If equal=False, returns the condition for non-aliasing (slot != value).
+  """
+  op = "==" if equal else "!="
+  t = _type(type)
+  if isinstance(t, Indirection):
+    return f"(const void*)({slot}) {op} (const void*)({value})"
+  return f"(const void*)&({slot}) {op} (const void*)({value})"
+
+
 # Basic callable descriptor
 class Callable(_Documented):
   

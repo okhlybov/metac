@@ -38,12 +38,19 @@ jobs:
             preset: make-Debug
             cc: cc
             cxx: c++
+          - name: linux-gcc-c99-pedantic
+            os: ubuntu-latest
+            preset: make-Debug
+            cc: gcc
+            cxx: g++
+            cflags: "-std=c99 -pedantic-errors"
           - name: windows-msvc
             os: windows-latest
             preset: vs2026-Debug            
     env:
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
+      CFLAGS: ${{ matrix.cflags }}
     steps:
       - uses: actions/checkout@v4
 
@@ -111,6 +118,9 @@ jobs:
           meson setup build/sample_meson/buildir build/sample_meson
           meson compile -C build/sample_meson/buildir
           ./build/sample_meson/buildir/sample_meson
+
+      - name: Documentation quick start
+        run: python -m unittest metac.test.test_doc
 
   # The generator itself is pure Python - fan out over the supported versions
   # and exercise generation (which also runs the trait tests at import).
